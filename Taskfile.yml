@@ -1,0 +1,35 @@
+# Task runner config — https://taskfile.dev
+# Install: go install github.com/go-task/task/v3/cmd/task@latest
+# List tasks: task --list
+version: "3"
+
+tasks:
+  run:
+    desc: Run the Anki TUI
+    cmds:
+      - go run ./cmd/anki {{.CLI_ARGS}}
+
+  build:
+    desc: Build all packages
+    cmds:
+      - go build ./...
+
+  lint:
+    desc: Vet and check formatting
+    cmds:
+      - go vet ./...
+      - gofmt -l .
+
+  fmt:
+    desc: Format all Go files
+    cmds:
+      - gofmt -w .
+
+  test:
+    desc: Run all tests
+    cmds:
+      - go test ./... {{.CLI_ARGS}}
+
+  check:
+    desc: Build, lint and test
+    deps: [build, lint, test]
