@@ -36,6 +36,16 @@ task fmt
 
 Module is `anki`. Requires Go 1.25.
 
+### Shell gotcha — multi-line git commit messages
+
+Default shell is PowerShell, but git/test commands are often run through the Bash tool. **PowerShell here-string syntax (`@'...'@`) is NOT valid in bash** — the `@` characters end up literally inside the commit message and force an `--amend`. When committing via the Bash tool, use repeated `-m` flags instead:
+
+```sh
+git commit -m "subject" -m "body paragraph" -m "Co-Authored-By: ..."
+```
+
+Reserve `@'...'@` for commands you actually run through the PowerShell tool.
+
 ## Project layout
 
 Standard Go layout (`cmd` / `internal` / `pkg`) combined with a **DDD split into bounded subdomains**. Each subdomain owns its own model — do **not** collect all types into one shared `domain` / `models` package. **Layering rule: the root package of a subdomain holds only the model (value objects, entities, invariants). Everything else — adapters, use-case/application layers, ports — lives in subpackages.** (The repo currently still has the original flat `package main` at the root — migrate to this layout as code is implemented.)
