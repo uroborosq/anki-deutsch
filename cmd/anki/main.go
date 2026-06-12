@@ -10,20 +10,19 @@
 package main
 
 import (
-	"fmt"
-	"log/slog"
-	"os"
-
-	tea "github.com/charmbracelet/bubbletea"
-
 	"anki/internal/deckbuilder/usecase"
-	ankiadapter "anki/internal/flashcard/anki"
 	"anki/internal/lexicon/wiktextract"
 	"anki/internal/lexicon/wiktionary"
 	"anki/internal/tui"
 	"anki/pkg/ankiconnect"
-
 	"flag"
+	"fmt"
+	"log/slog"
+	"os"
+
+	ankiadapter "anki/internal/flashcard/anki"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // Defaults wire the user's usual setup so the TUI runs with no flags: the
@@ -40,6 +39,7 @@ func main() {
 	deck := flag.String("deck", defaultDeck, "target deck (skips the deck picker when set)")
 	model := flag.String("model", defaultModel, "Anki note type for new cards")
 	dictPath := flag.String("dict", defaultDictPath, "offline kaikki dump (compact JSONL from wikt-import); falls back to the live Wiktionary API when the file is absent")
+
 	flag.Parse()
 
 	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -52,6 +52,7 @@ func main() {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
+
 	svc := usecase.NewService(dict, cards)
 
 	program := tea.NewProgram(tui.New(svc, *deck), tea.WithAltScreen())
@@ -69,14 +70,18 @@ func newDictionary(log *slog.Logger, dictPath string) (usecase.Dictionary, error
 	if dictPath == "" {
 		return wiktionary.NewClient(log), nil
 	}
+
 	if _, err := os.Stat(dictPath); err != nil {
 		fmt.Fprintf(os.Stderr, "offline dump %s not found — using live Wiktionary API (run cmd/wikt-import to enable offline)\n", dictPath)
 		return wiktionary.NewClient(log), nil
 	}
+
 	c, err := wiktextract.Open(dictPath)
 	if err != nil {
 		return nil, err
 	}
+
 	log.Info("loaded offline dictionary", "lemmas", c.Len(), "path", dictPath)
+
 	return c, nil
 }

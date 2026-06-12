@@ -1,16 +1,16 @@
 package usecase
 
 import (
-	"strings"
-
 	"anki/internal/flashcard"
 	"anki/internal/lexicon"
+	"strings"
 )
 
 // translate is the anti-corruption mapping from a lexicon.Word to a
 // flashcard.Note. The output is deterministic so golden tests can pin it.
 func translate(w *lexicon.Word) flashcard.Note {
 	front := w.Lemma
+
 	var forms []string
 
 	switch w.PartOfSpeech {
@@ -18,6 +18,7 @@ func translate(w *lexicon.Word) flashcard.Note {
 		if a := w.Gender.Article(); a != "" {
 			front = a + " " + w.Lemma
 		}
+
 		if p := normalizePlural(w.Plural); p != "" {
 			forms = append(forms, "Plural: die "+p)
 		}
@@ -26,16 +27,20 @@ func translate(w *lexicon.Word) flashcard.Note {
 		if w.Reflexive {
 			front = "sich " + w.Lemma
 		}
+
 		var parts []string
 		if w.PartizipII != "" {
 			parts = append(parts, "Partizip II: "+w.PartizipII)
 		}
+
 		if w.Auxiliary != "" {
 			parts = append(parts, "Hilfsverb: "+w.Auxiliary)
 		}
+
 		if len(parts) > 0 {
 			forms = append(forms, strings.Join(parts, " · "))
 		}
+
 		if w.Praeteritum != "" {
 			forms = append(forms, "Präteritum: "+w.Praeteritum)
 		}
@@ -44,6 +49,7 @@ func translate(w *lexicon.Word) flashcard.Note {
 		if w.Comparative != "" {
 			forms = append(forms, "Komparativ: "+w.Comparative)
 		}
+
 		if w.Superlative != "" {
 			forms = append(forms, "Superlativ: "+w.Superlative)
 		}
@@ -55,11 +61,13 @@ func translate(w *lexicon.Word) flashcard.Note {
 	if ru := strings.Join(w.Russian, ", "); ru != "" {
 		lines = append(lines, ru)
 	}
+
 	lines = append(lines, forms...)
 	if len(w.Definitions) > 0 {
 		if len(lines) > 0 {
 			lines = append(lines, "──")
 		}
+
 		lines = append(lines, w.Definitions...)
 	}
 
@@ -77,6 +85,7 @@ func normalizePlural(p string) string {
 	case "", "—", "–", "-":
 		return ""
 	}
+
 	return strings.TrimSpace(p)
 }
 
@@ -89,12 +98,15 @@ func extractLemma(front string) string {
 		if len(fields) != 2 {
 			break
 		}
+
 		switch strings.ToLower(fields[0]) {
 		case "der", "die", "das", "ein", "eine", "sich":
 			s = strings.TrimSpace(fields[1])
 			continue
 		}
+
 		break
 	}
+
 	return s
 }

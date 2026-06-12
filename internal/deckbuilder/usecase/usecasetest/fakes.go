@@ -6,11 +6,10 @@
 package usecasetest
 
 import (
-	"context"
-
 	"anki/internal/deckbuilder"
 	"anki/internal/flashcard"
 	"anki/internal/lexicon"
+	"context"
 )
 
 // FakeDictionary is a programmable usecase.Dictionary.

@@ -26,12 +26,12 @@ AnkiConnect API reference (request envelope + full action list — `findCards`, 
 ## Commands
 
 ```sh
-go build ./...        # build (currently fails: see adapter.go GetCards)
+task build
 go run .              # run main
-go test ./...         # run all tests (none exist yet)
+task test
 go test -run TestName # run a single test
-go vet ./...          # static checks
-gofmt -w .            # format
+task lint
+task fmt
 ```
 
 Module is `anki`. Requires Go 1.25.

@@ -1,10 +1,9 @@
 package wiktionary
 
 import (
+	"anki/internal/lexicon"
 	"regexp"
 	"strings"
-
-	"anki/internal/lexicon"
 )
 
 // parse turns raw Wiktionary wikitext into a lexicon.Word. It is best-effort:
@@ -26,6 +25,7 @@ func parse(lemma, wikitext string) *lexicon.Word {
 
 	word.Definitions = parseDefinitions(wikitext)
 	word.Russian = parseRussian(wikitext)
+
 	return word
 }
 
@@ -41,14 +41,18 @@ func parseRussian(wikitext string) []string {
 	if idx < 0 {
 		return nil
 	}
+
 	section := wikitext[idx:]
 
 	var out []string
+
 	seen := map[string]bool{}
+
 	for _, line := range strings.Split(section, "\n") {
 		if !strings.HasPrefix(strings.TrimSpace(line), "*{{ru}}") {
 			continue
 		}
+
 		for _, m := range ruTranslationRe.FindAllStringSubmatch(line, -1) {
 			w := cleanRussian(m[1])
 			if w != "" && !seen[w] {
@@ -57,6 +61,7 @@ func parseRussian(wikitext string) []string {
 			}
 		}
 	}
+
 	return out
 }
 
@@ -65,6 +70,7 @@ func parseRussian(wikitext string) []string {
 func cleanRussian(s string) string {
 	s = stripLinks(s)
 	s = strings.ReplaceAll(s, "́", "")
+
 	return strings.TrimSpace(s)
 }
 
@@ -87,6 +93,7 @@ func parseNoun(word *lexicon.Word, wikitext string) {
 	if !ok {
 		return
 	}
+
 	switch strings.ToLower(strings.TrimSpace(tmpl.params["Genus"])) {
 	case "m":
 		word.Gender = lexicon.Masculine
@@ -95,6 +102,7 @@ func parseNoun(word *lexicon.Word, wikitext string) {
 	case "n":
 		word.Gender = lexicon.Neuter
 	}
+
 	word.Plural = strings.TrimSpace(tmpl.params["Nominativ Plural"])
 }
 
@@ -105,6 +113,7 @@ func parseVerb(word *lexicon.Word, wikitext string) {
 		word.Auxiliary = strings.TrimSpace(tmpl.params["Hilfsverb"])
 		word.Praeteritum = strings.TrimSpace(tmpl.params["Präteritum_ich"])
 	}
+
 	if reflexiveHeadword.MatchString(word.Lemma) || reflexiveHeadword.MatchString(headwordLine(wikitext)) {
 		word.Reflexive = true
 	}
@@ -118,6 +127,7 @@ func headwordLine(wikitext string) string {
 			return line
 		}
 	}
+
 	return ""
 }
 
@@ -126,6 +136,7 @@ func parseAdjective(word *lexicon.Word, wikitext string) {
 	if !ok {
 		return
 	}
+
 	word.Comparative = strings.TrimSpace(tmpl.params["Komparativ"])
 	word.Superlative = strings.TrimSpace(tmpl.params["Superlativ"])
 }
@@ -153,6 +164,7 @@ func findTemplate(wikitext, name string) (template, bool) {
 	i := start
 	contentStart := -1
 	end := -1
+
 	for i < len(wikitext)-1 {
 		switch {
 		case wikitext[i] == '{' && wikitext[i+1] == '{':
@@ -160,19 +172,23 @@ func findTemplate(wikitext, name string) (template, bool) {
 			if depth == 1 {
 				contentStart = i + 2
 			}
+
 			i += 2
 		case wikitext[i] == '}' && wikitext[i+1] == '}':
 			depth--
 			if depth == 0 {
 				end = i
 				i = len(wikitext) // break outer loop
+
 				continue
 			}
+
 			i += 2
 		default:
 			i++
 		}
 	}
+
 	if contentStart < 0 || end < 0 {
 		return template{}, false
 	}
@@ -181,17 +197,21 @@ func findTemplate(wikitext, name string) (template, bool) {
 	parts := splitTopLevel(inner)
 
 	tmpl := template{params: map[string]string{}}
+
 	for idx, part := range parts {
 		if idx == 0 {
 			tmpl.name = strings.TrimSpace(part)
 			continue
 		}
+
 		key, value, ok := strings.Cut(part, "=")
 		if !ok {
 			continue
 		}
+
 		tmpl.params[strings.TrimSpace(key)] = strings.TrimSpace(value)
 	}
+
 	return tmpl, true
 }
 
@@ -200,11 +220,13 @@ func findTemplate(wikitext, name string) (template, bool) {
 func templateStart(wikitext, name string) int {
 	search := wikitext
 	offset := 0
+
 	for {
 		idx := strings.Index(search, "{{")
 		if idx < 0 {
 			return -1
 		}
+
 		after := strings.TrimLeft(search[idx+2:], " \t")
 		if strings.HasPrefix(after, name) {
 			// Ensure the name is delimited by | , whitespace, or closing braces.
@@ -215,6 +237,7 @@ func templateStart(wikitext, name string) int {
 				return offset + idx
 			}
 		}
+
 		offset += idx + 2
 		search = wikitext[offset:]
 	}
@@ -223,48 +246,69 @@ func templateStart(wikitext, name string) int {
 // splitTopLevel splits inner template content on "|" that are not nested inside
 // another {{ }} or [[ ]].
 func splitTopLevel(inner string) []string {
-	var parts []string
-	var buf strings.Builder
+	var (
+		parts []string
+		buf   strings.Builder
+	)
+
 	braceDepth := 0
 	bracketDepth := 0
+
 	for i := 0; i < len(inner); i++ {
 		if i < len(inner)-1 {
 			pair := inner[i : i+2]
 			switch pair {
 			case "{{":
 				braceDepth++
+
 				buf.WriteString(pair)
+
 				i++
+
 				continue
 			case "}}":
 				if braceDepth > 0 {
 					braceDepth--
 				}
+
 				buf.WriteString(pair)
+
 				i++
+
 				continue
 			case "[[":
 				bracketDepth++
+
 				buf.WriteString(pair)
+
 				i++
+
 				continue
 			case "]]":
 				if bracketDepth > 0 {
 					bracketDepth--
 				}
+
 				buf.WriteString(pair)
+
 				i++
+
 				continue
 			}
 		}
+
 		if inner[i] == '|' && braceDepth == 0 && bracketDepth == 0 {
 			parts = append(parts, buf.String())
 			buf.Reset()
+
 			continue
 		}
+
 		buf.WriteByte(inner[i])
 	}
+
 	parts = append(parts, buf.String())
+
 	return parts
 }
 
@@ -283,11 +327,14 @@ func parseDefinitions(wikitext string) []string {
 	if idx < 0 {
 		return nil
 	}
+
 	section := wikitext[idx+len("{{Bedeutungen}}"):]
 
 	var defs []string
+
 	for _, line := range strings.Split(section, "\n") {
 		line = strings.TrimRight(line, "\r")
+
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
@@ -297,20 +344,25 @@ func parseDefinitions(wikitext string) []string {
 			if strings.HasPrefix(trimmed, "{{") && strings.HasSuffix(trimmed, "}}") {
 				break
 			}
+
 			continue
 		}
+
 		m := meaningLine.FindStringSubmatch(trimmed)
 		if m == nil {
 			continue
 		}
+
 		text := cleanMarkup(m[1])
 		if text != "" {
 			defs = append(defs, text)
 		}
 	}
+
 	if len(defs) == 0 {
 		return nil
 	}
+
 	return defs
 }
 
@@ -324,30 +376,38 @@ func cleanMarkup(s string) string {
 	s = stripLinks(s)
 	s = strings.ReplaceAll(s, "'''", "")
 	s = strings.ReplaceAll(s, "''", "")
+
 	return strings.TrimSpace(s)
 }
 
 // stripLinks replaces [[target|label]] with label and [[target]] with target.
 func stripLinks(s string) string {
 	var buf strings.Builder
+
 	for {
 		open := strings.Index(s, "[[")
 		if open < 0 {
 			buf.WriteString(s)
 			break
 		}
+
 		buf.WriteString(s[:open])
+
 		close := strings.Index(s[open:], "]]")
 		if close < 0 {
 			buf.WriteString(s[open:])
 			break
 		}
+
 		inner := s[open+2 : open+close]
 		if pipe := strings.LastIndex(inner, "|"); pipe >= 0 {
 			inner = inner[pipe+1:]
 		}
+
 		buf.WriteString(inner)
+
 		s = s[open+close+2:]
 	}
+
 	return buf.String()
 }

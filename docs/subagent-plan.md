@@ -152,7 +152,7 @@ compile-time-проверку:
 Полный прогон и качество:
 
 - `go build ./...`, `go vet ./...`, `go test ./... -race`,
-  `go test -tags integration ./...`, `gofmt -l .`.
+  `go test -tags integration ./...`, `golangci-lint run ./...`.
 
 Сквозная (E2E) проверка вручную:
 

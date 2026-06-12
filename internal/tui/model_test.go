@@ -1,13 +1,12 @@
 package tui
 
 import (
-	"context"
-	"errors"
-	"testing"
-
 	"anki/internal/deckbuilder"
 	"anki/internal/deckbuilder/usecase/usecasetest"
 	"anki/internal/flashcard"
+	"context"
+	"errors"
+	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -15,11 +14,14 @@ import (
 // update applies a message and returns the concrete *Model for assertions.
 func update(t *testing.T, m *Model, msg tea.Msg) (*Model, tea.Cmd) {
 	t.Helper()
+
 	next, cmd := m.Update(msg)
+
 	got, ok := next.(*Model)
 	if !ok {
 		t.Fatalf("Update returned %T, want *Model", next)
 	}
+
 	return got, cmd
 }
 
@@ -28,9 +30,11 @@ func TestNewSkipsDeckPickWithDefaultDeck(t *testing.T) {
 	if m.state != stateModePick {
 		t.Fatalf("state = %d, want stateModePick", m.state)
 	}
+
 	if m.deck != "Default" {
 		t.Fatalf("deck = %q, want Default", m.deck)
 	}
+
 	if cmd := m.Init(); cmd != nil {
 		t.Fatalf("Init with default deck should not fetch decks")
 	}
@@ -41,6 +45,7 @@ func TestNewWithoutDefaultDeckFetchesDecks(t *testing.T) {
 	if m.state != stateDeckPick {
 		t.Fatalf("state = %d, want stateDeckPick", m.state)
 	}
+
 	if m.Init() == nil {
 		t.Fatalf("Init without default deck should return a decks command")
 	}
@@ -48,10 +53,12 @@ func TestNewWithoutDefaultDeckFetchesDecks(t *testing.T) {
 
 func TestDecksMsgPopulatesDeckPicker(t *testing.T) {
 	m := New(usecasetest.FakeService{}, "")
+
 	m, _ = update(t, m, decksMsg{decks: []flashcard.DeckName{"A", "B"}})
 	if m.state != stateDeckPick {
 		t.Fatalf("state = %d, want stateDeckPick", m.state)
 	}
+
 	if n := len(m.deckList.Items()); n != 2 {
 		t.Fatalf("deck list has %d items, want 2", n)
 	}
@@ -61,6 +68,7 @@ func TestDecksMsgPopulatesDeckPicker(t *testing.T) {
 	if m.state != stateModePick {
 		t.Fatalf("state = %d, want stateModePick after enter", m.state)
 	}
+
 	if m.deck != "A" {
 		t.Fatalf("deck = %q, want A", m.deck)
 	}
@@ -68,10 +76,12 @@ func TestDecksMsgPopulatesDeckPicker(t *testing.T) {
 
 func TestDecksErrMsgStaysOnDeckPick(t *testing.T) {
 	m := New(usecasetest.FakeService{}, "")
+
 	m, _ = update(t, m, decksErrMsg{err: errors.New("boom")})
 	if m.state != stateDeckPick {
 		t.Fatalf("state = %d, want stateDeckPick", m.state)
 	}
+
 	if m.lastErr == nil {
 		t.Fatalf("expected lastErr to be recorded")
 	}
@@ -97,10 +107,12 @@ func TestAddFlowSuccess(t *testing.T) {
 
 	// Type a word and submit: this only looks the word up.
 	m.input.SetValue("Hund")
+
 	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
 	if m.state != stateAddLoading {
 		t.Fatalf("state = %d, want stateAddLoading", m.state)
 	}
+
 	if cmd == nil {
 		t.Fatalf("expected a command to run PreviewWord")
 	}
@@ -110,6 +122,7 @@ func TestAddFlowSuccess(t *testing.T) {
 	if m.state != stateAddPreview {
 		t.Fatalf("state = %d, want stateAddPreview", m.state)
 	}
+
 	if m.previewNote.Front != "der Hund" {
 		t.Fatalf("previewNote.Front = %q, want der Hund", m.previewNote.Front)
 	}
@@ -119,6 +132,7 @@ func TestAddFlowSuccess(t *testing.T) {
 	if m.state != stateAddSaving {
 		t.Fatalf("state = %d, want stateAddSaving", m.state)
 	}
+
 	if cmd == nil {
 		t.Fatalf("expected a command to run AddNote")
 	}
@@ -128,6 +142,7 @@ func TestAddFlowSuccess(t *testing.T) {
 	if m.state != stateAddResult {
 		t.Fatalf("state = %d, want stateAddResult", m.state)
 	}
+
 	if m.lastID != 42 || m.lastErr != nil {
 		t.Fatalf("lastID=%d lastErr=%v, want 42/nil", m.lastID, m.lastErr)
 	}
@@ -176,6 +191,7 @@ func TestAddFlowLookupError(t *testing.T) {
 	if m.state != stateAddResult {
 		t.Fatalf("state = %d, want stateAddResult", m.state)
 	}
+
 	if m.lastErr == nil {
 		t.Fatalf("expected lastErr after lookupErrMsg")
 	}
@@ -189,6 +205,7 @@ func TestAddFlowSaveError(t *testing.T) {
 	if m.state != stateAddResult {
 		t.Fatalf("state = %d, want stateAddResult", m.state)
 	}
+
 	if m.lastErr == nil {
 		t.Fatalf("expected lastErr after addErrMsg")
 	}
@@ -207,10 +224,12 @@ func TestScanFlow(t *testing.T) {
 
 	// Move selection to "Scan deck" and start scanning.
 	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyDown})
+
 	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
 	if m.state != stateScanLoading {
 		t.Fatalf("state = %d, want stateScanLoading", m.state)
 	}
+
 	if cmd == nil {
 		t.Fatalf("expected a command to run ScanDeck")
 	}
@@ -220,13 +239,16 @@ func TestScanFlow(t *testing.T) {
 		{NoteID: 1, Lemma: "Hund", Fields: map[string]string{"Back": "der Hund"}, Preview: "der Hund"},
 		{NoteID: 2, Lemma: "xyz", Skipped: true, Reason: "not found"},
 	}
+
 	m, _ = update(t, m, scanDoneMsg{suggestions: suggestions})
 	if m.state != stateScanList {
 		t.Fatalf("state = %d, want stateScanList", m.state)
 	}
+
 	if !m.selected[0] {
 		t.Fatalf("fillable suggestion should be preselected")
 	}
+
 	if m.selected[1] {
 		t.Fatalf("skipped suggestion should not be preselected")
 	}
@@ -241,6 +263,7 @@ func TestScanFlow(t *testing.T) {
 	if m.state != stateApplyLoading {
 		t.Fatalf("state = %d, want stateApplyLoading", m.state)
 	}
+
 	if cmd == nil {
 		t.Fatalf("expected a command to run Apply")
 	}
@@ -250,6 +273,7 @@ func TestScanFlow(t *testing.T) {
 	if m.state != stateScanSummary {
 		t.Fatalf("state = %d, want stateScanSummary", m.state)
 	}
+
 	if m.updated != 1 {
 		t.Fatalf("updated = %d, want 1", m.updated)
 	}
@@ -285,15 +309,19 @@ func TestCommandsCallService(t *testing.T) {
 	if msg := decksCmd(svc)(); msg.(decksMsg).decks[0] != "A" {
 		t.Fatalf("decksCmd returned %#v", msg)
 	}
+
 	if msg := previewWordCmd(svc, "Hund")(); msg.(previewDoneMsg).note.Front != "der Hund" {
 		t.Fatalf("previewWordCmd returned %#v", msg)
 	}
+
 	if msg := addNoteCmd(svc, "D", flashcard.Note{})(); msg.(addDoneMsg).id != 7 {
 		t.Fatalf("addNoteCmd returned %#v", msg)
 	}
+
 	if msg := scanDeckCmd(svc, "D")(); len(msg.(scanDoneMsg).suggestions) != 1 {
 		t.Fatalf("scanDeckCmd returned %#v", msg)
 	}
+
 	got := applyCmd(svc, []deckbuilder.Suggestion{{NoteID: 1}})().(applyDoneMsg)
 	if got.updated != 1 || got.skipped != 2 {
 		t.Fatalf("applyCmd returned %#v", got)
@@ -314,9 +342,11 @@ func TestCommandsCallService(t *testing.T) {
 	if _, ok := decksCmd(errSvc)().(decksErrMsg); !ok {
 		t.Fatalf("decksCmd error path wrong type")
 	}
+
 	if _, ok := previewWordCmd(errSvc, "w")().(lookupErrMsg); !ok {
 		t.Fatalf("previewWordCmd error path wrong type")
 	}
+
 	if _, ok := addNoteCmd(errSvc, "D", flashcard.Note{})().(addErrMsg); !ok {
 		t.Fatalf("addNoteCmd error path wrong type")
 	}
@@ -337,6 +367,7 @@ func TestScanToggleAndApplyEmpty(t *testing.T) {
 	if m.selected[0] {
 		t.Fatalf("space should have toggled selection off")
 	}
+
 	if got := m.chosenSuggestions(); len(got) != 0 {
 		t.Fatalf("chosen = %d, want 0 after deselect", len(got))
 	}
@@ -344,10 +375,12 @@ func TestScanToggleAndApplyEmpty(t *testing.T) {
 
 func TestScanErrGoesToSummary(t *testing.T) {
 	m := New(usecasetest.FakeService{}, "Deutsch")
+
 	m, _ = update(t, m, scanErrMsg{err: errors.New("offline")})
 	if m.state != stateScanSummary {
 		t.Fatalf("state = %d, want stateScanSummary", m.state)
 	}
+
 	if m.lastErr == nil {
 		t.Fatalf("expected lastErr after scanErrMsg")
 	}
@@ -358,6 +391,7 @@ func TestQuitKeys(t *testing.T) {
 	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC}); cmd == nil {
 		t.Fatalf("ctrl+c should quit")
 	}
+
 	if _, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}}); cmd == nil {
 		t.Fatalf("q should quit from mode pick")
 	}
@@ -365,10 +399,12 @@ func TestQuitKeys(t *testing.T) {
 
 func TestWindowSizeDoesNotChangeState(t *testing.T) {
 	m := New(usecasetest.FakeService{}, "Deutsch")
+
 	m, _ = update(t, m, tea.WindowSizeMsg{Width: 80, Height: 24})
 	if m.state != stateModePick {
 		t.Fatalf("state = %d, want stateModePick after resize", m.state)
 	}
+
 	if m.width != 80 || m.height != 24 {
 		t.Fatalf("size = %dx%d, want 80x24", m.width, m.height)
 	}

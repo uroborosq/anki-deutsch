@@ -17,13 +17,13 @@ tasks:
   lint:
     desc: Vet and check formatting
     cmds:
+      - golangci-lint run ./...
       - go vet ./...
-      - gofmt -l .
 
   fmt:
     desc: Format all Go files
     cmds:
-      - gofmt -w .
+      - golangci-lint run ./... --fix
 
   test:
     desc: Run all tests

@@ -1,6 +1,8 @@
 package wiktextract
 
 import (
+	"anki/internal/deckbuilder/usecase"
+	"anki/internal/lexicon"
 	"bufio"
 	"context"
 	"encoding/json"
@@ -8,9 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"anki/internal/deckbuilder/usecase"
-	"anki/internal/lexicon"
 )
 
 // Client must satisfy the outbound Dictionary port.
@@ -21,11 +20,13 @@ var _ usecase.Dictionary = (*Client)(nil)
 func writeCompact(t *testing.T) string {
 	t.Helper()
 	out := filepath.Join(t.TempDir(), "compact.jsonl")
+
 	wf, err := os.Create(out)
 	if err != nil {
 		t.Fatalf("create compact: %v", err)
 	}
-	defer wf.Close()
+	defer func() { _ = wf.Close() }()
+
 	enc := json.NewEncoder(wf)
 
 	for _, fixture := range []string{"haus.jsonl", "lernen.jsonl", "schnell.jsonl", "obst.jsonl"} {
@@ -33,8 +34,10 @@ func writeCompact(t *testing.T) string {
 		if err != nil {
 			t.Fatalf("open %s: %v", fixture, err)
 		}
+
 		sc := bufio.NewScanner(rf)
 		sc.Buffer(make([]byte, 0, 1<<20), 1<<24)
+
 		for sc.Scan() {
 			if w, ok := ParseEntry(sc.Bytes()); ok {
 				if err := enc.Encode(w); err != nil {
@@ -42,8 +45,10 @@ func writeCompact(t *testing.T) string {
 				}
 			}
 		}
-		rf.Close()
+
+		_ = rf.Close()
 	}
+
 	return out
 }
 
@@ -52,6 +57,7 @@ func TestClientLookup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
+
 	if c.Len() == 0 {
 		t.Fatal("no lemmas loaded")
 	}
@@ -60,6 +66,7 @@ func TestClientLookup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Lookup Haus: %v", err)
 	}
+
 	if w.Plural != "Häuser" {
 		t.Errorf("Plural = %q, want Häuser", w.Plural)
 	}

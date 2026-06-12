@@ -4,11 +4,10 @@
 package anki
 
 import (
-	"context"
-	"fmt"
-
 	"anki/internal/flashcard"
 	"anki/pkg/ankiconnect"
+	"context"
+	"fmt"
 )
 
 // Adapter implements the deckbuilder Cards port on top of an AnkiConnect client.
@@ -42,10 +41,12 @@ func (a *Adapter) Decks(ctx context.Context) ([]flashcard.DeckName, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	decks := make([]flashcard.DeckName, len(names))
 	for i, name := range names {
 		decks[i] = flashcard.DeckName(name)
 	}
+
 	return decks, nil
 }
 
@@ -55,11 +56,14 @@ func (a *Adapter) FindIncomplete(ctx context.Context, deck flashcard.DeckName) (
 	if err != nil {
 		return nil, err
 	}
+
 	infos, err := a.client.NotesInfo(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
+
 	var incomplete []flashcard.Note
+
 	for _, info := range infos {
 		note := flashcard.Note{
 			ID:    info.NoteID,
@@ -71,6 +75,7 @@ func (a *Adapter) FindIncomplete(ctx context.Context, deck flashcard.DeckName) (
 			incomplete = append(incomplete, note)
 		}
 	}
+
 	return incomplete, nil
 }
 

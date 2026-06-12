@@ -16,6 +16,7 @@ func TestParseRussian(t *testing.T) {
 		"}}\n"
 
 	got := parseRussian(wikitext)
+
 	want := []string{"фрукты", "плоды"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("parseRussian = %#v, want %#v", got, want)

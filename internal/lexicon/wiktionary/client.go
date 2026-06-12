@@ -5,6 +5,7 @@
 package wiktionary
 
 import (
+	"anki/internal/lexicon"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -12,8 +13,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-
-	"anki/internal/lexicon"
 )
 
 // defaultBaseURL is the German Wiktionary MediaWiki API endpoint.
@@ -48,6 +47,7 @@ func NewClient(log *slog.Logger, opts ...Option) *Client {
 	if log == nil {
 		log = slog.New(slog.DiscardHandler)
 	}
+
 	c := &Client{
 		log:     log,
 		baseURL: defaultBaseURL,
@@ -56,6 +56,7 @@ func NewClient(log *slog.Logger, opts ...Option) *Client {
 	for _, opt := range opts {
 		opt(c)
 	}
+
 	return c
 }
 
@@ -88,7 +89,9 @@ func (c *Client) Lookup(ctx context.Context, lemma string) (*lexicon.Word, error
 	if err != nil {
 		return nil, err
 	}
+
 	word := parse(lemma, wikitext)
+
 	return word, nil
 }
 
@@ -111,7 +114,7 @@ func (c *Client) fetch(ctx context.Context, lemma string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("wiktionary: do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("wiktionary: unexpected status %d", resp.StatusCode)
@@ -132,6 +135,7 @@ func (c *Client) fetch(ctx context.Context, lemma string) (string, error) {
 			c.log.Debug("wiktionary lookup missing", "lemma", lemma)
 			return "", lexicon.ErrNotFound
 		}
+
 		return page.Revisions[0].Slots.Main.Content, nil
 	}
 
@@ -144,6 +148,7 @@ func (c *Client) requestURL(lemma string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("wiktionary: parse base URL: %w", err)
 	}
+
 	q := url.Values{}
 	q.Set("action", "query")
 	q.Set("prop", "revisions")
@@ -152,5 +157,6 @@ func (c *Client) requestURL(lemma string) (string, error) {
 	q.Set("format", "json")
 	q.Set("titles", lemma)
 	u.RawQuery = q.Encode()
+
 	return u.String(), nil
 }

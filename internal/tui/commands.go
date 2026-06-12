@@ -1,10 +1,9 @@
 package tui
 
 import (
-	"context"
-
 	"anki/internal/deckbuilder"
 	"anki/internal/flashcard"
+	"context"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -39,6 +38,7 @@ func decksCmd(svc Service) tea.Cmd {
 		if err != nil {
 			return decksErrMsg{err}
 		}
+
 		return decksMsg{decks}
 	}
 }
@@ -51,6 +51,7 @@ func previewWordCmd(svc Service, lemma string) tea.Cmd {
 		if err != nil {
 			return lookupErrMsg{err}
 		}
+
 		return previewDoneMsg{note}
 	}
 }
@@ -62,6 +63,7 @@ func addNoteCmd(svc Service, deck flashcard.DeckName, note flashcard.Note) tea.C
 		if err != nil {
 			return addErrMsg{err}
 		}
+
 		return addDoneMsg{id}
 	}
 }
@@ -73,6 +75,7 @@ func scanDeckCmd(svc Service, deck flashcard.DeckName) tea.Cmd {
 		if err != nil {
 			return scanErrMsg{err}
 		}
+
 		return scanDoneMsg{suggestions}
 	}
 }
@@ -84,6 +87,7 @@ func applyCmd(svc Service, suggestions []deckbuilder.Suggestion) tea.Cmd {
 		if err != nil {
 			return applyErrMsg{err}
 		}
+
 		return applyDoneMsg{updated: updated, skipped: skipped}
 	}
 }

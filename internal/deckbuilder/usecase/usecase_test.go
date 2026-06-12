@@ -1,16 +1,15 @@
 package usecase_test
 
 import (
-	"context"
-	"errors"
-	"reflect"
-	"testing"
-
 	"anki/internal/deckbuilder"
 	"anki/internal/deckbuilder/usecase"
 	"anki/internal/deckbuilder/usecase/usecasetest"
 	"anki/internal/flashcard"
 	"anki/internal/lexicon"
+	"context"
+	"errors"
+	"reflect"
+	"testing"
 )
 
 func TestTranslate(t *testing.T) {
@@ -121,9 +120,11 @@ func TestTranslate(t *testing.T) {
 			if note.Front != tt.wantFront {
 				t.Errorf("Front = %q, want %q", note.Front, tt.wantFront)
 			}
+
 			if note.Back != tt.wantBack {
 				t.Errorf("Back = %q, want %q", note.Back, tt.wantBack)
 			}
+
 			wantTags := []string{"german", "auto"}
 			if !reflect.DeepEqual(note.Tags, wantTags) {
 				t.Errorf("Tags = %v, want %v", note.Tags, wantTags)
@@ -136,7 +137,9 @@ func TestTranslate(t *testing.T) {
 // translate itself is unexported. It captures the Note handed to Cards.Add.
 func usecaseTranslate(t *testing.T, w *lexicon.Word) flashcard.Note {
 	t.Helper()
+
 	var got flashcard.Note
+
 	dict := usecasetest.FakeDictionary{
 		LookupFunc: func(ctx context.Context, lemma string) (*lexicon.Word, error) {
 			return w, nil
@@ -148,10 +151,12 @@ func usecaseTranslate(t *testing.T, w *lexicon.Word) flashcard.Note {
 			return 1, nil
 		},
 	}
+
 	svc := usecase.NewService(dict, cards)
 	if _, err := svc.AddWord(context.Background(), "deck", w.Lemma); err != nil {
 		t.Fatalf("AddWord returned error: %v", err)
 	}
+
 	return got
 }
 
@@ -182,7 +187,9 @@ func TestExtractLemma(t *testing.T) {
 // ScanDeck passes to Dictionary.Lookup.
 func scanLemma(t *testing.T, front string) string {
 	t.Helper()
+
 	var seen string
+
 	dict := usecasetest.FakeDictionary{
 		LookupFunc: func(ctx context.Context, lemma string) (*lexicon.Word, error) {
 			seen = lemma
@@ -194,10 +201,12 @@ func scanLemma(t *testing.T, front string) string {
 			return []flashcard.Note{{ID: 1, Front: front}}, nil
 		},
 	}
+
 	svc := usecase.NewService(dict, cards)
 	if _, err := svc.ScanDeck(context.Background(), "deck"); err != nil {
 		t.Fatalf("ScanDeck returned error: %v", err)
 	}
+
 	return seen
 }
 
@@ -209,8 +218,12 @@ func TestAddWordHappyPath(t *testing.T) {
 		Plural:       "Häuser",
 		Definitions:  []string{"house"},
 	}
-	var gotDeck flashcard.DeckName
-	var gotNote flashcard.Note
+
+	var (
+		gotDeck flashcard.DeckName
+		gotNote flashcard.Note
+	)
+
 	dict := usecasetest.FakeDictionary{
 		LookupFunc: func(ctx context.Context, lemma string) (*lexicon.Word, error) {
 			return word, nil
@@ -220,20 +233,25 @@ func TestAddWordHappyPath(t *testing.T) {
 		AddFunc: func(ctx context.Context, deck flashcard.DeckName, note flashcard.Note) (uint64, error) {
 			gotDeck = deck
 			gotNote = note
+
 			return 42, nil
 		},
 	}
 	svc := usecase.NewService(dict, cards)
+
 	id, err := svc.AddWord(context.Background(), "vocab", "Haus")
 	if err != nil {
 		t.Fatalf("AddWord error: %v", err)
 	}
+
 	if id != 42 {
 		t.Errorf("id = %d, want 42", id)
 	}
+
 	if gotDeck != "vocab" {
 		t.Errorf("deck = %q, want vocab", gotDeck)
 	}
+
 	want := flashcard.Note{
 		Front: "das Haus",
 		Back:  "Plural: die Häuser\n──\nhouse",
@@ -257,6 +275,7 @@ func TestAddWordLookupError(t *testing.T) {
 			return 0, nil
 		},
 	}
+
 	svc := usecase.NewService(dict, cards)
 	if _, err := svc.AddWord(context.Background(), "deck", "x"); !errors.Is(err, wantErr) {
 		t.Errorf("err = %v, want %v", err, wantErr)
@@ -282,14 +301,18 @@ func TestScanDeckFound(t *testing.T) {
 		},
 	}
 	svc := usecase.NewService(dict, cards)
+
 	got, err := svc.ScanDeck(context.Background(), "deck")
 	if err != nil {
 		t.Fatalf("ScanDeck error: %v", err)
 	}
+
 	if len(got) != 1 {
 		t.Fatalf("got %d suggestions, want 1", len(got))
 	}
+
 	wantBack := "Plural: die Häuser\n──\nhouse"
+
 	want := deckbuilder.Suggestion{
 		NoteID:  7,
 		Lemma:   "Haus",
@@ -313,13 +336,16 @@ func TestScanDeckNotFound(t *testing.T) {
 		},
 	}
 	svc := usecase.NewService(dict, cards)
+
 	got, err := svc.ScanDeck(context.Background(), "deck")
 	if err != nil {
 		t.Fatalf("ScanDeck error: %v", err)
 	}
+
 	if len(got) != 1 {
 		t.Fatalf("got %d suggestions, want 1", len(got))
 	}
+
 	want := deckbuilder.Suggestion{
 		NoteID:  9,
 		Lemma:   "Quux",
@@ -333,6 +359,7 @@ func TestScanDeckNotFound(t *testing.T) {
 
 func TestApply(t *testing.T) {
 	var updates []uint64
+
 	cards := usecasetest.FakeCards{
 		UpdateFunc: func(ctx context.Context, id uint64, fields map[string]string) error {
 			updates = append(updates, id)
@@ -347,16 +374,20 @@ func TestApply(t *testing.T) {
 		{NoteID: 2, Skipped: true, Reason: "not found"},
 		{NoteID: 3, Fields: map[string]string{"Back": "c"}},
 	}
+
 	updated, skipped, err := svc.Apply(context.Background(), suggestions)
 	if err != nil {
 		t.Fatalf("Apply error: %v", err)
 	}
+
 	if updated != 2 {
 		t.Errorf("updated = %d, want 2", updated)
 	}
+
 	if skipped != 1 {
 		t.Errorf("skipped = %d, want 1", skipped)
 	}
+
 	if !reflect.DeepEqual(updates, []uint64{1, 3}) {
 		t.Errorf("updated ids = %v, want [1 3]", updates)
 	}
@@ -368,6 +399,7 @@ func TestApplyUpdateErrorCountsSkipped(t *testing.T) {
 			if id == 2 {
 				return errors.New("update failed")
 			}
+
 			return nil
 		},
 	}
@@ -376,10 +408,12 @@ func TestApplyUpdateErrorCountsSkipped(t *testing.T) {
 		{NoteID: 1, Fields: map[string]string{"Back": "a"}},
 		{NoteID: 2, Fields: map[string]string{"Back": "b"}},
 	}
+
 	updated, skipped, err := svc.Apply(context.Background(), suggestions)
 	if err != nil {
 		t.Fatalf("Apply error: %v", err)
 	}
+
 	if updated != 1 || skipped != 1 {
 		t.Errorf("updated=%d skipped=%d, want 1 and 1", updated, skipped)
 	}

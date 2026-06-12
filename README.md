@@ -110,8 +110,8 @@ See `docs/functional-spec.md` (what it does) and `docs/implementation-plan.md`
 ## Development
 
 ```sh
-go build ./...   # build
-go test ./...    # run tests
-go vet ./...     # static checks
-gofmt -w .       # format
+go build ./...               # build
+go test ./...                # run tests
+go vet ./...                 # static checks
+golangci-lint run ./... --fix  # lint + gofumpt format
 ```

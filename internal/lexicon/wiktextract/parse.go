@@ -5,10 +5,9 @@
 package wiktextract
 
 import (
+	"anki/internal/lexicon"
 	"encoding/json"
 	"strings"
-
-	"anki/internal/lexicon"
 )
 
 // rawEntry mirrors the subset of the kaikki dewiktionary JSON we consume. The
@@ -41,6 +40,7 @@ func ParseEntry(line []byte) (*lexicon.Word, bool) {
 	if err := json.Unmarshal(line, &e); err != nil {
 		return nil, false
 	}
+
 	if e.LangCode != "de" || e.Word == "" || contains(e.Tags, "form-of") {
 		return nil, false
 	}
@@ -65,6 +65,7 @@ func ParseEntry(line []byte) (*lexicon.Word, bool) {
 		w.Comparative = e.form(func(t []string) bool { return len(t) == 1 && t[0] == "comparative" })
 		w.Superlative = e.form(func(t []string) bool { return len(t) == 1 && t[0] == "superlative" })
 	}
+
 	return w, true
 }
 
@@ -105,10 +106,12 @@ const (
 // inflection senses that are tagged "form-of".
 func (e rawEntry) definitions() []string {
 	var defs []string
+
 	for _, s := range e.Senses {
 		if contains(s.Tags, "form-of") || len(s.Glosses) == 0 {
 			continue
 		}
+
 		if g := strings.TrimSpace(strings.Join(s.Glosses, " ")); g != "" {
 			defs = append(defs, g)
 			if len(defs) == maxDefinitions {
@@ -116,26 +119,32 @@ func (e rawEntry) definitions() []string {
 			}
 		}
 	}
+
 	return defs
 }
 
 // russian returns distinct Russian translations in dump order (capped).
 func (e rawEntry) russian() []string {
 	var out []string
+
 	seen := map[string]bool{}
+
 	for _, t := range e.Translations {
 		if t.LangCode != "ru" {
 			continue
 		}
+
 		w := strings.TrimSpace(t.Word)
 		if w != "" && !seen[w] {
 			seen[w] = true
+
 			out = append(out, w)
 			if len(out) == maxRussian {
 				break
 			}
 		}
 	}
+
 	return out
 }
 
@@ -147,13 +156,16 @@ func (e rawEntry) form(match func(tags []string) bool) string {
 		if !match(f.Tags) {
 			continue
 		}
+
 		v := strings.TrimSpace(f.Form)
 		// "am schnellsten" is the canonical superlative, so allow a leading "am".
 		if v == "" || (strings.Contains(v, " ") && !strings.HasPrefix(v, "am ")) {
 			continue
 		}
+
 		return v
 	}
+
 	return ""
 }
 
@@ -164,6 +176,7 @@ func (e rawEntry) reflexive() bool {
 			return true
 		}
 	}
+
 	return false
 }
 
@@ -173,5 +186,6 @@ func contains(s []string, v string) bool {
 			return true
 		}
 	}
+
 	return false
 }

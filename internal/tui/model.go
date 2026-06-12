@@ -1,12 +1,11 @@
 package tui
 
 import (
-	"fmt"
-	"strings"
-
 	"anki/internal/deckbuilder"
 	"anki/internal/deckbuilder/usecase"
 	"anki/internal/flashcard"
+	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -46,8 +45,10 @@ type listItem struct {
 	desc  string
 }
 
-func (i listItem) Title() string       { return i.title }
+func (i listItem) Title() string { return i.title }
+
 func (i listItem) Description() string { return i.desc }
+
 func (i listItem) FilterValue() string { return i.title }
 
 // Model is the root Bubble Tea model. It depends only on the Service port.
@@ -131,6 +132,7 @@ func New(svc usecase.Service, defaultDeck string) *Model {
 	} else {
 		m.state = stateDeckPick
 	}
+
 	return m
 }
 
@@ -139,6 +141,7 @@ func (m *Model) Init() tea.Cmd {
 	if m.hasDefaultDeck {
 		return nil
 	}
+
 	return decksCmd(m.svc)
 }
 
@@ -152,7 +155,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
+
 		m.spinner, cmd = m.spinner.Update(msg)
+
 		return m, cmd
 
 	case decksMsg:
@@ -161,25 +166,30 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case decksErrMsg:
 		m.lastErr = msg.err
 		m.state = stateDeckPick
+
 		return m, nil
 
 	case previewDoneMsg:
 		m.previewNote = msg.note
 		m.lastErr = nil
 		m.state = stateAddPreview
+
 		return m, nil
 	case addDoneMsg:
 		m.lastID = msg.id
 		m.lastErr = nil
 		m.state = stateAddResult
+
 		return m, nil
 	case addErrMsg:
 		m.lastErr = msg.err
 		m.state = stateAddResult
+
 		return m, nil
 	case lookupErrMsg:
 		m.lastErr = msg.err
 		m.state = stateAddResult
+
 		return m, nil
 
 	case scanDoneMsg:
@@ -188,6 +198,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case scanErrMsg:
 		m.lastErr = msg.err
 		m.state = stateScanSummary
+
 		return m, nil
 
 	case applyDoneMsg:
@@ -195,10 +206,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.skipped = msg.skipped
 		m.lastErr = nil
 		m.state = stateScanSummary
+
 		return m, nil
 	case applyErrMsg:
 		m.lastErr = msg.err
 		m.state = stateScanSummary
+
 		return m, nil
 
 	case tea.KeyMsg:
@@ -209,8 +222,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "q" && m.state != stateAddInput {
 			return m, tea.Quit
 		}
+
 		return m.handleKey(msg)
 	}
+
 	return m, nil
 }
 
@@ -223,10 +238,14 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.deck = flashcard.DeckName(it.title)
 				m.state = stateModePick
 			}
+
 			return m, nil
 		}
+
 		var cmd tea.Cmd
+
 		m.deckList, cmd = m.deckList.Update(msg)
+
 		return m, cmd
 
 	case stateModePick:
@@ -235,15 +254,20 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if it, ok := m.modeList.SelectedItem().(listItem); ok {
 				return m.startMode(it.title)
 			}
+
 			return m, nil
 		case tea.KeyEsc:
 			if !m.hasDefaultDeck {
 				m.state = stateDeckPick
 			}
+
 			return m, nil
 		}
+
 		var cmd tea.Cmd
+
 		m.modeList, cmd = m.modeList.Update(msg)
+
 		return m, cmd
 
 	case stateAddInput:
@@ -253,15 +277,21 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if lemma == "" {
 				return m, nil
 			}
+
 			m.state = stateAddLoading
+
 			return m, tea.Batch(m.spinner.Tick, previewWordCmd(m.svc, lemma))
 		case tea.KeyEsc:
 			m.input.Blur()
 			m.state = stateModePick
+
 			return m, nil
 		}
+
 		var cmd tea.Cmd
+
 		m.input, cmd = m.input.Update(msg)
+
 		return m, cmd
 
 	case stateAddPreview:
@@ -274,14 +304,17 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Cancel: discard the preview and type another word.
 			m.state = stateAddInput
 			m.input.Reset()
+
 			return m, m.input.Focus()
 		}
+
 		return m, nil
 
 	case stateAddResult:
 		// Any key returns to the input for another word.
 		m.state = stateAddInput
 		m.input.Reset()
+
 		return m, m.input.Focus()
 
 	case stateScanList:
@@ -296,6 +329,7 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Ignore input while a Service call is in flight (quit handled above).
 		return m, nil
 	}
+
 	return m, nil
 }
 
@@ -305,11 +339,13 @@ func (m *Model) startMode(title string) (tea.Model, tea.Cmd) {
 	case modeAddTitle:
 		m.state = stateAddInput
 		m.input.Reset()
+
 		return m, m.input.Focus()
 	case modeScanTitle:
 		m.state = stateScanLoading
 		return m, tea.Batch(m.spinner.Tick, scanDeckCmd(m.svc, m.deck))
 	}
+
 	return m, nil
 }
 
@@ -331,10 +367,12 @@ func (m *Model) handleScanKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "a":
 		chosen := m.chosenSuggestions()
 		m.state = stateApplyLoading
+
 		return m, tea.Batch(m.spinner.Tick, applyCmd(m.svc, chosen))
 	case "esc":
 		m.state = stateModePick
 	}
+
 	return m, nil
 }
 
@@ -346,6 +384,7 @@ func (m *Model) chosenSuggestions() []deckbuilder.Suggestion {
 			chosen = append(chosen, s)
 		}
 	}
+
 	return chosen
 }
 
@@ -355,6 +394,7 @@ func (m *Model) setDecks(decks []flashcard.DeckName) {
 	for _, d := range decks {
 		items = append(items, listItem{title: string(d), desc: "Anki deck"})
 	}
+
 	m.deckList.SetItems(items)
 	m.state = stateDeckPick
 }
@@ -362,12 +402,14 @@ func (m *Model) setDecks(decks []flashcard.DeckName) {
 // setSuggestions loads the review screen, preselecting every fillable suggestion.
 func (m *Model) setSuggestions(suggestions []deckbuilder.Suggestion) {
 	m.suggestions = suggestions
+
 	m.selected = make(map[int]bool, len(suggestions))
 	for i, s := range suggestions {
 		if !s.Skipped {
 			m.selected[i] = true
 		}
 	}
+
 	m.cursor = 0
 	m.state = stateScanList
 }
@@ -375,12 +417,15 @@ func (m *Model) setSuggestions(suggestions []deckbuilder.Suggestion) {
 // setSize keeps the embedded components sized to the window.
 func (m *Model) setSize(w, h int) {
 	m.width, m.height = w, h
+
 	listH := h - 4
 	if listH < 1 {
 		listH = 1
 	}
+
 	m.deckList.SetSize(w, listH)
 	m.modeList.SetSize(w, listH)
+
 	iw := w - 8
 	if iw > 0 {
 		m.input.Width = iw
@@ -417,6 +462,7 @@ func (m *Model) View() string {
 	case stateScanSummary:
 		return m.viewScanSummary()
 	}
+
 	return ""
 }
 
@@ -424,6 +470,7 @@ func (m *Model) viewWithError(body string) string {
 	if m.lastErr == nil {
 		return body
 	}
+
 	return body + "\n" + m.styles.Err.Render("error: "+m.lastErr.Error())
 }
 
@@ -436,6 +483,7 @@ func (m *Model) viewAddInput() string {
 	b.WriteString(m.styles.ActiveInput.Render(m.input.View()))
 	b.WriteString("\n\n")
 	b.WriteString(m.hints("enter", "add", "esc", "back", "ctrl+c", "quit"))
+
 	return b.String()
 }
 
@@ -454,10 +502,12 @@ func (m *Model) viewAddPreview() string {
 	b.WriteString("\n")
 
 	b.WriteString(m.styles.Faint.Render("Back   "))
+
 	for i, line := range strings.Split(m.previewNote.Back, "\n") {
 		if i > 0 {
 			b.WriteString("       ")
 		}
+
 		b.WriteString(m.styles.Item.Render(line))
 		b.WriteString("\n")
 	}
@@ -466,8 +516,10 @@ func (m *Model) viewAddPreview() string {
 		b.WriteString(m.styles.Faint.Render("tags   " + strings.Join(m.previewNote.Tags, ", ")))
 		b.WriteString("\n")
 	}
+
 	b.WriteString("\n")
 	b.WriteString(m.hints("enter", "add", "esc", "cancel", "ctrl+c", "quit"))
+
 	return b.String()
 }
 
@@ -475,13 +527,16 @@ func (m *Model) viewAddResult() string {
 	var b strings.Builder
 	b.WriteString(m.styles.Title.Render(" Result "))
 	b.WriteString("\n\n")
+
 	if m.lastErr != nil {
 		b.WriteString(m.styles.Err.Render("✗ " + m.lastErr.Error()))
 	} else {
 		b.WriteString(m.styles.OK.Render(fmt.Sprintf("✓ added note %d", m.lastID)))
 	}
+
 	b.WriteString("\n\n")
 	b.WriteString(m.hints("any key", "add another", "ctrl+c", "quit"))
+
 	return b.String()
 }
 
@@ -489,32 +544,41 @@ func (m *Model) viewScanList() string {
 	var b strings.Builder
 	b.WriteString(m.styles.Title.Render(" Suggestions "))
 	b.WriteString("\n\n")
+
 	if len(m.suggestions) == 0 {
 		b.WriteString(m.styles.Faint.Render("nothing to fill — every note is complete."))
 		b.WriteString("\n\n")
 		b.WriteString(m.hints("esc", "back", "ctrl+c", "quit"))
+
 		return b.String()
 	}
+
 	for i, s := range m.suggestions {
 		cursor := "  "
 		if i == m.cursor {
 			cursor = m.styles.Selected.Render("▌ ")
 		}
+
 		box := "[ ]"
 		if s.Skipped {
 			box = m.styles.Warn.Render("[-]")
 		} else if m.selected[i] {
 			box = m.styles.Checkbox.Render("[x]")
 		}
+
 		line := m.styles.Gender(articleOf(s)).Render(s.Lemma)
+
 		detail := s.Preview
 		if s.Skipped {
 			detail = m.styles.Skipped.Render("skipped: " + s.Reason)
 		}
-		b.WriteString(fmt.Sprintf("%s%s %s  %s\n", cursor, box, line, detail))
+
+		fmt.Fprintf(&b, "%s%s %s  %s\n", cursor, box, line, detail)
 	}
+
 	b.WriteString("\n")
 	b.WriteString(m.hints("space", "toggle", "a", "apply", "esc", "back", "ctrl+c", "quit"))
+
 	return b.String()
 }
 
@@ -522,6 +586,7 @@ func (m *Model) viewScanSummary() string {
 	var b strings.Builder
 	b.WriteString(m.styles.Title.Render(" Summary "))
 	b.WriteString("\n\n")
+
 	if m.lastErr != nil {
 		b.WriteString(m.styles.Err.Render("✗ " + m.lastErr.Error()))
 	} else {
@@ -529,8 +594,10 @@ func (m *Model) viewScanSummary() string {
 		b.WriteString("   ")
 		b.WriteString(m.styles.Warn.Render(fmt.Sprintf("skipped %d", m.skipped)))
 	}
+
 	b.WriteString("\n\n")
 	b.WriteString(m.hints("any key", "back to menu", "ctrl+c", "quit"))
+
 	return b.String()
 }
 
@@ -540,6 +607,7 @@ func (m *Model) hints(pairs ...string) string {
 	for i := 0; i+1 < len(pairs); i += 2 {
 		parts = append(parts, m.styles.KeyHint.Render(pairs[i])+" "+m.styles.Faint.Render(pairs[i+1]))
 	}
+
 	return strings.Join(parts, m.styles.Faint.Render(" · "))
 }
 
@@ -551,6 +619,7 @@ func articleOf(s deckbuilder.Suggestion) string {
 			return a
 		}
 	}
+
 	return firstArticle(s.Preview)
 }
 
@@ -561,5 +630,6 @@ func firstArticle(text string) string {
 			return w
 		}
 	}
+
 	return ""
 }

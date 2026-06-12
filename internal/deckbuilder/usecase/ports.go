@@ -5,11 +5,10 @@
 package usecase
 
 import (
-	"context"
-
 	"anki/internal/deckbuilder"
 	"anki/internal/flashcard"
 	"anki/internal/lexicon"
+	"context"
 )
 
 // Dictionary is the outbound port for looking up a German word. Implemented by

@@ -1,12 +1,11 @@
 package usecase
 
 import (
-	"context"
-	"errors"
-
 	"anki/internal/deckbuilder"
 	"anki/internal/flashcard"
 	"anki/internal/lexicon"
+	"context"
+	"errors"
 )
 
 // service is the concrete Service implementation. It depends only on the ports.
@@ -30,10 +29,12 @@ func (s *service) PreviewWord(ctx context.Context, lemma string) (flashcard.Note
 	// before lookup, same as ScanDeck does; translate() re-adds the article from
 	// the looked-up gender.
 	lemma = extractLemma(lemma)
+
 	w, err := s.dict.Lookup(ctx, lemma)
 	if err != nil {
 		return flashcard.Note{}, err
 	}
+
 	return translate(w), nil
 }
 
@@ -50,6 +51,7 @@ func (s *service) AddWord(ctx context.Context, deck flashcard.DeckName, lemma st
 	if err != nil {
 		return 0, err
 	}
+
 	return s.AddNote(ctx, deck, note)
 }
 
@@ -63,18 +65,21 @@ func (s *service) ScanDeck(ctx context.Context, deck flashcard.DeckName) ([]deck
 	suggestions := make([]deckbuilder.Suggestion, 0, len(notes))
 	for _, note := range notes {
 		lemma := extractLemma(note.Front)
+
 		w, err := s.dict.Lookup(ctx, lemma)
 		if err != nil {
 			reason := "not found"
 			if !errors.Is(err, lexicon.ErrNotFound) {
 				reason = err.Error()
 			}
+
 			suggestions = append(suggestions, deckbuilder.Suggestion{
 				NoteID:  note.ID,
 				Lemma:   lemma,
 				Skipped: true,
 				Reason:  reason,
 			})
+
 			continue
 		}
 
@@ -86,23 +91,28 @@ func (s *service) ScanDeck(ctx context.Context, deck flashcard.DeckName) ([]deck
 			Preview: back,
 		})
 	}
+
 	return suggestions, nil
 }
 
 // Apply writes the selected suggestions back to their notes.
 func (s *service) Apply(ctx context.Context, suggestions []deckbuilder.Suggestion) (int, int, error) {
 	var updated, skipped int
+
 	for _, sg := range suggestions {
 		if sg.Skipped {
 			skipped++
 			continue
 		}
+
 		if err := s.cards.Update(ctx, sg.NoteID, sg.Fields); err != nil {
 			skipped++
 			continue
 		}
+
 		updated++
 	}
+
 	return updated, skipped, nil
 }
 

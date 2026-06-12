@@ -1,6 +1,10 @@
 package anki_test
 
 import (
+	"anki/internal/deckbuilder/usecase"
+	"anki/internal/flashcard"
+	"anki/internal/flashcard/anki"
+	"anki/pkg/ankiconnect"
 	"context"
 	"encoding/json"
 	"io"
@@ -8,11 +12,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-
-	"anki/internal/deckbuilder/usecase"
-	"anki/internal/flashcard"
-	"anki/internal/flashcard/anki"
-	"anki/pkg/ankiconnect"
 )
 
 // compile-time assertion that the adapter satisfies the outbound port.
@@ -23,22 +22,27 @@ var _ usecase.Cards = (*anki.Adapter)(nil)
 // the pointer for assertions.
 func newServer(t *testing.T, response string, captured *map[string]any) *httptest.Server {
 	t.Helper()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Errorf("read request body: %v", err)
 		}
+
 		if captured != nil {
 			var env map[string]any
 			if err := json.Unmarshal(body, &env); err != nil {
 				t.Errorf("decode request envelope: %v", err)
 			}
+
 			*captured = env
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, response)
 	}))
 	t.Cleanup(srv.Close)
+
 	return srv
 }
 
@@ -54,10 +58,12 @@ func TestDecks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Decks: %v", err)
 	}
+
 	want := []flashcard.DeckName{"Default", "DEUTSCH"}
 	if len(decks) != len(want) {
 		t.Fatalf("got %d decks, want %d", len(decks), len(want))
 	}
+
 	for i := range want {
 		if decks[i] != want[i] {
 			t.Errorf("decks[%d] = %q, want %q", i, decks[i], want[i])
@@ -67,6 +73,7 @@ func TestDecks(t *testing.T) {
 
 func TestAdd(t *testing.T) {
 	var env map[string]any
+
 	srv := newServer(t, `{"result":1496198395707,"error":null}`, &env)
 	a := anki.NewAdapter(newClient(srv.URL), "Basic")
 
@@ -78,6 +85,7 @@ func TestAdd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
+
 	if id != 1496198395707 {
 		t.Errorf("id = %d, want 1496198395707", id)
 	}
@@ -85,30 +93,38 @@ func TestAdd(t *testing.T) {
 	if env["action"] != "addNote" {
 		t.Errorf("action = %v, want addNote", env["action"])
 	}
+
 	if env["version"] != float64(6) {
 		t.Errorf("version = %v, want 6", env["version"])
 	}
+
 	params, ok := env["params"].(map[string]any)
 	if !ok {
 		t.Fatalf("params not an object: %v", env["params"])
 	}
+
 	note, ok := params["note"].(map[string]any)
 	if !ok {
 		t.Fatalf("params.note not an object: %v", params["note"])
 	}
+
 	if note["deckName"] != "DEUTSCH" {
 		t.Errorf("deckName = %v, want DEUTSCH", note["deckName"])
 	}
+
 	if note["modelName"] != "Basic" {
 		t.Errorf("modelName = %v, want Basic", note["modelName"])
 	}
+
 	fields, ok := note["fields"].(map[string]any)
 	if !ok {
 		t.Fatalf("note.fields not an object: %v", note["fields"])
 	}
+
 	if fields["Front"] != "Haus" {
 		t.Errorf("fields.Front = %v, want Haus", fields["Front"])
 	}
+
 	if fields["Back"] != "house" {
 		t.Errorf("fields.Back = %v, want house", fields["Back"])
 	}
@@ -124,18 +140,23 @@ func TestFindIncomplete(t *testing.T) {
 			{"noteId":3,"modelName":"Basic","tags":["verb"],"fields":{"Front":{"value":"gehen","order":0},"Back":{"value":"   ","order":1}}}
 		],"error":null}`,
 	}
+
 	var queries []string
+
 	i := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
+
 		var env struct {
 			Action string         `json:"action"`
 			Params map[string]any `json:"params"`
 		}
+
 		_ = json.Unmarshal(body, &env)
 		if env.Action == "findNotes" {
 			queries = append(queries, env.Params["query"].(string))
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, responses[i])
 		i++
@@ -143,6 +164,7 @@ func TestFindIncomplete(t *testing.T) {
 	t.Cleanup(srv.Close)
 
 	a := anki.NewAdapter(newClient(srv.URL), "Basic")
+
 	notes, err := a.FindIncomplete(context.Background(), "DEUTSCH")
 	if err != nil {
 		t.Fatalf("FindIncomplete: %v", err)
@@ -156,12 +178,15 @@ func TestFindIncomplete(t *testing.T) {
 	if len(notes) != 2 {
 		t.Fatalf("got %d incomplete notes, want 2: %+v", len(notes), notes)
 	}
+
 	if notes[0].ID != 2 || notes[0].Front != "Tisch" || notes[0].Back != "" {
 		t.Errorf("notes[0] = %+v, want id 2 Tisch/empty", notes[0])
 	}
+
 	if notes[1].ID != 3 || notes[1].Front != "gehen" {
 		t.Errorf("notes[1] = %+v, want id 3 gehen", notes[1])
 	}
+
 	if len(notes[1].Tags) != 1 || notes[1].Tags[0] != "verb" {
 		t.Errorf("notes[1].Tags = %v, want [verb]", notes[1].Tags)
 	}
@@ -169,6 +194,7 @@ func TestFindIncomplete(t *testing.T) {
 
 func TestUpdate(t *testing.T) {
 	var env map[string]any
+
 	srv := newServer(t, `{"result":null,"error":null}`, &env)
 	a := anki.NewAdapter(newClient(srv.URL), "Basic")
 
@@ -180,14 +206,18 @@ func TestUpdate(t *testing.T) {
 	if env["action"] != "updateNoteFields" {
 		t.Errorf("action = %v, want updateNoteFields", env["action"])
 	}
+
 	if env["version"] != float64(6) {
 		t.Errorf("version = %v, want 6", env["version"])
 	}
+
 	params := env["params"].(map[string]any)
+
 	note := params["note"].(map[string]any)
 	if note["id"] != float64(42) {
 		t.Errorf("note.id = %v, want 42", note["id"])
 	}
+
 	fields := note["fields"].(map[string]any)
 	if fields["Back"] != "house" {
 		t.Errorf("note.fields.Back = %v, want house", fields["Back"])
