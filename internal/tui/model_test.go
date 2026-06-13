@@ -168,10 +168,237 @@ func TestAddPreviewCancel(t *testing.T) {
 	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // -> loading
 	m, _ = update(t, m, previewDoneMsg{note: note})     // -> preview
 
-	// Esc on the preview discards it and returns to the input.
+	// Esc on the preview discards it and returns to the input, keeping the word.
 	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEsc})
 	if m.state != stateAddInput {
 		t.Fatalf("state = %d, want stateAddInput after cancel", m.state)
+	}
+
+	if m.input.Value() != "Hund" {
+		t.Fatalf("input = %q, want Hund kept after cancel", m.input.Value())
+	}
+}
+
+// TestInputClearKey checks ctrl+u empties the input field.
+func TestInputClearKey(t *testing.T) {
+	m := New(usecasetest.FakeService{}, "Deutsch")
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // -> add input
+	m.input.SetValue("Hund")
+
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlU})
+	if m.state != stateAddInput {
+		t.Fatalf("state = %d, want stateAddInput after clear", m.state)
+	}
+
+	if m.input.Value() != "" {
+		t.Fatalf("input = %q, want empty after ctrl+u", m.input.Value())
+	}
+}
+
+// TestInputKeptOnLookupError checks that a not-found word stays in the input so
+// the user can correct a typo instead of retyping it.
+func TestInputKeptOnLookupError(t *testing.T) {
+	svc := usecasetest.FakeService{
+		PreviewWordFunc: func(_ context.Context, _ string) (flashcard.Note, error) {
+			return flashcard.Note{}, errors.New("not found")
+		},
+	}
+	m := New(svc, "Deutsch")
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // -> add input
+	m.input.SetValue("Hudn")                            // a typo
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // -> loading
+
+	m, _ = update(t, m, lookupErrMsg{err: errors.New("not found")})
+	if m.state != stateAddResult {
+		t.Fatalf("state = %d, want stateAddResult", m.state)
+	}
+
+	// Any key returns to the input with the misspelled word still there.
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if m.state != stateAddInput {
+		t.Fatalf("state = %d, want stateAddInput", m.state)
+	}
+
+	if m.input.Value() != "Hudn" {
+		t.Fatalf("input = %q, want Hudn kept after lookup error", m.input.Value())
+	}
+}
+
+// TestInputClearedAfterSuccess checks the input is empty after a word is added,
+// ready for the next one.
+func TestInputClearedAfterSuccess(t *testing.T) {
+	note := flashcard.Note{Front: "der Hund", Back: "собака"}
+	svc := usecasetest.FakeService{
+		PreviewWordFunc: func(_ context.Context, _ string) (flashcard.Note, error) {
+			return note, nil
+		},
+		AddNoteFunc: func(_ context.Context, _ flashcard.DeckName, _ flashcard.Note) (uint64, error) {
+			return 1, nil
+		},
+	}
+	m := New(svc, "Deutsch")
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // -> add input
+	m.input.SetValue("Hund")
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // -> loading
+	m, _ = update(t, m, previewDoneMsg{note: note})     // -> preview
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // -> saving
+	m, _ = update(t, m, addDoneMsg{id: 1})              // -> result
+
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'x'}})
+	if m.state != stateAddInput {
+		t.Fatalf("state = %d, want stateAddInput", m.state)
+	}
+
+	if m.input.Value() != "" {
+		t.Fatalf("input = %q, want empty after successful add", m.input.Value())
+	}
+}
+
+func TestAddPreviewEditSaves(t *testing.T) {
+	note := flashcard.Note{Front: "der Hund", Back: "собака", Tags: []string{"german"}}
+	m := New(usecasetest.FakeService{}, "Deutsch")
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // -> add input
+	m.input.SetValue("Hund")
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // -> loading
+	m, _ = update(t, m, previewDoneMsg{note: note})     // -> preview
+
+	// 'e' opens the editor seeded from the preview.
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	if m.state != stateAddEdit {
+		t.Fatalf("state = %d, want stateAddEdit", m.state)
+	}
+
+	if m.editFront.Value() != "der Hund" || m.editBack.Value() != "собака" {
+		t.Fatalf("editor not seeded: front=%q back=%q", m.editFront.Value(), m.editBack.Value())
+	}
+
+	// Edit both fields and save with ctrl+s — control returns to the preview.
+	m.editFront.SetValue("die Katze")
+	m.editBack.SetValue("кошка")
+
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	if m.state != stateAddPreview {
+		t.Fatalf("state = %d, want stateAddPreview after save", m.state)
+	}
+
+	// The edited fields land in previewNote, which is what confirm hands to AddNote.
+	if m.previewNote.Front != "die Katze" || m.previewNote.Back != "кошка" {
+		t.Fatalf("edits not applied to previewNote: %+v", m.previewNote)
+	}
+
+	// Confirming from the preview now saves the edited note.
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.state != stateAddSaving {
+		t.Fatalf("state = %d, want stateAddSaving after confirm", m.state)
+	}
+
+	if cmd == nil {
+		t.Fatalf("expected an AddNote command after confirm")
+	}
+}
+
+// TestAddManualEntry checks ctrl+e on the input screen skips the dictionary and
+// opens the editor on a blank card, then reuses the edit→preview→add path.
+func TestAddManualEntry(t *testing.T) {
+	svc := usecasetest.FakeService{
+		PreviewWordFunc: func(_ context.Context, _ string) (flashcard.Note, error) {
+			t.Fatal("manual add must not call the dictionary")
+			return flashcard.Note{}, nil
+		},
+		AddNoteFunc: func(_ context.Context, _ flashcard.DeckName, _ flashcard.Note) (uint64, error) {
+			return 7, nil
+		},
+	}
+	m := New(svc, "Deutsch")
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // -> add input
+	m.input.SetValue("Hund")
+
+	// ctrl+e skips the lookup and opens the editor seeded from the typed word,
+	// focused on the Back field for manual entry.
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	if m.state != stateAddEdit {
+		t.Fatalf("state = %d, want stateAddEdit", m.state)
+	}
+
+	if m.editFront.Value() != "Hund" || m.editBack.Value() != "" {
+		t.Fatalf("editor not seeded: front=%q back=%q", m.editFront.Value(), m.editBack.Value())
+	}
+
+	if m.editFocus != 1 {
+		t.Fatalf("editFocus = %d, want 1 (Back)", m.editFocus)
+	}
+
+	// Fill in the back by hand and save — control returns to the preview.
+	m.editBack.SetValue("собака")
+
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	if m.state != stateAddPreview {
+		t.Fatalf("state = %d, want stateAddPreview after save", m.state)
+	}
+
+	if m.previewNote.Front != "Hund" || m.previewNote.Back != "собака" {
+		t.Fatalf("previewNote = %+v, want Hund/собака", m.previewNote)
+	}
+
+	// Confirming writes the hand-built note to Anki.
+	m, cmd := update(t, m, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.state != stateAddSaving {
+		t.Fatalf("state = %d, want stateAddSaving after confirm", m.state)
+	}
+
+	if cmd == nil {
+		t.Fatalf("expected an AddNote command after confirm")
+	}
+}
+
+// TestAddManualEntryEscReturnsToInput checks esc from the manual editor goes
+// back to the word input (not a preview), keeping the typed word.
+func TestAddManualEntryEscReturnsToInput(t *testing.T) {
+	m := New(usecasetest.FakeService{}, "Deutsch")
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // -> add input
+	m.input.SetValue("Hund")
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlE}) // -> manual edit
+
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEsc})
+	if m.state != stateAddInput {
+		t.Fatalf("state = %d, want stateAddInput after esc from manual edit", m.state)
+	}
+
+	if m.input.Value() != "Hund" {
+		t.Fatalf("input = %q, want Hund kept after esc", m.input.Value())
+	}
+}
+
+// TestAddManualEntryEmptyNoop checks ctrl+e does nothing with an empty input.
+func TestAddManualEntryEmptyNoop(t *testing.T) {
+	m := New(usecasetest.FakeService{}, "Deutsch")
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // -> add input
+
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyCtrlE})
+	if m.state != stateAddInput {
+		t.Fatalf("state = %d, want stateAddInput (no-op on empty)", m.state)
+	}
+}
+
+func TestAddPreviewEditCancelDiscards(t *testing.T) {
+	note := flashcard.Note{Front: "der Hund", Back: "собака"}
+	m := New(usecasetest.FakeService{}, "Deutsch")
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // -> add input
+	m.input.SetValue("Hund")
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEnter}) // -> loading
+	m, _ = update(t, m, previewDoneMsg{note: note})     // -> preview
+
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	m.editFront.SetValue("changed")
+
+	// Esc discards the edits and returns to the preview unchanged.
+	m, _ = update(t, m, tea.KeyMsg{Type: tea.KeyEsc})
+	if m.state != stateAddPreview {
+		t.Fatalf("state = %d, want stateAddPreview after cancel", m.state)
+	}
+
+	if m.previewNote.Front != "der Hund" {
+		t.Fatalf("previewNote.Front = %q, want der Hund (edits should be discarded)", m.previewNote.Front)
 	}
 }
 

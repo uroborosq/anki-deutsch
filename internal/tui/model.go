@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -26,6 +27,7 @@ const (
 	stateAddInput                  // 3a. type a word
 	stateAddLoading                // 3b. PreviewWord (lookup) in flight
 	stateAddPreview                // 3c. show the card, await confirm
+	stateAddEdit                   // 3c'. edit the card's Front/Back before adding
 	stateAddSaving                 // 3d. AddNote in flight
 	stateAddResult                 // 3e. show note id or error
 	stateScanLoading               // 4a. ScanDeck in flight
@@ -70,8 +72,18 @@ type Model struct {
 
 	// add preview/result
 	previewNote flashcard.Note
+	lastLemma   string // last word submitted for lookup, kept to refill the input
 	lastID      uint64
 	lastErr     error
+
+	// add edit: Front is a single line, Back is multi-line. editFocus is 0 for
+	// the Front field, 1 for the Back field. manualEdit is true when the editor
+	// was opened directly from the input screen (ctrl+e) rather than from a
+	// preview, so esc returns to the input instead of a non-existent preview.
+	editFront  textinput.Model
+	editBack   textarea.Model
+	editFocus  int
+	manualEdit bool
 
 	// scan/apply
 	suggestions []deckbuilder.Suggestion
@@ -95,6 +107,15 @@ func New(svc usecase.Service, defaultDeck string) *Model {
 	sp.Spinner = spinner.Dot
 	sp.Style = st.Selected
 
+	editFront := textinput.New()
+	editFront.Prompt = "› "
+	editFront.CharLimit = 128
+
+	editBack := textarea.New()
+	editBack.Prompt = "  "
+	editBack.ShowLineNumbers = false
+	editBack.CharLimit = 2048
+
 	delegate := list.NewDefaultDelegate()
 	delegate.Styles.SelectedTitle = st.Selected
 	delegate.Styles.SelectedDesc = st.Faint
@@ -116,13 +137,15 @@ func New(svc usecase.Service, defaultDeck string) *Model {
 	modeList.Styles.Title = st.Title
 
 	m := &Model{
-		svc:      svc,
-		styles:   st,
-		input:    ti,
-		spinner:  sp,
-		deckList: deckList,
-		modeList: modeList,
-		selected: map[int]bool{},
+		svc:       svc,
+		styles:    st,
+		input:     ti,
+		spinner:   sp,
+		deckList:  deckList,
+		modeList:  modeList,
+		editFront: editFront,
+		editBack:  editBack,
+		selected:  map[int]bool{},
 	}
 
 	if defaultDeck != "" {
@@ -218,8 +241,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Type == tea.KeyCtrlC {
 			return m, tea.Quit
 		}
-		// 'q' quits everywhere except while typing a word.
-		if msg.String() == "q" && m.state != stateAddInput {
+		// 'q' quits everywhere except while typing into a text field.
+		if msg.String() == "q" && m.state != stateAddInput && m.state != stateAddEdit {
 			return m, tea.Quit
 		}
 
@@ -278,9 +301,22 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
+			m.lastLemma = lemma
 			m.state = stateAddLoading
 
 			return m, tea.Batch(m.spinner.Tick, previewWordCmd(m.svc, lemma))
+		case tea.KeyCtrlE:
+			// Manual add: skip the dictionary and edit a blank card by hand.
+			lemma := strings.TrimSpace(m.input.Value())
+			if lemma == "" {
+				return m, nil
+			}
+
+			return m.enterManualEdit(lemma)
+		case tea.KeyCtrlU:
+			// Quickly clear the input field.
+			m.input.Reset()
+			return m, nil
 		case tea.KeyEsc:
 			m.input.Blur()
 			m.state = stateModePick
@@ -300,22 +336,24 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Confirm: store the previewed note in Anki.
 			m.state = stateAddSaving
 			return m, tea.Batch(m.spinner.Tick, addNoteCmd(m.svc, m.deck, m.previewNote))
+		case "e":
+			// Edit: open the Front/Back fields seeded from the preview.
+			return m.enterEdit()
 		case "esc", "n":
-			// Cancel: discard the preview and type another word.
-			m.state = stateAddInput
-			m.input.Reset()
-
-			return m, m.input.Focus()
+			// Cancel: discard the preview but keep the word in the input so it can
+			// be corrected and resubmitted.
+			return m.returnToInput(true)
 		}
 
 		return m, nil
 
-	case stateAddResult:
-		// Any key returns to the input for another word.
-		m.state = stateAddInput
-		m.input.Reset()
+	case stateAddEdit:
+		return m.handleEditKey(msg)
 
-		return m, m.input.Focus()
+	case stateAddResult:
+		// Any key returns to the input. On failure (e.g. the word was not found)
+		// keep the word so it can be fixed; on success start fresh.
+		return m.returnToInput(m.lastErr != nil)
 
 	case stateScanList:
 		return m.handleScanKey(msg)
@@ -347,6 +385,107 @@ func (m *Model) startMode(title string) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+// returnToInput goes back to the word-input screen. When prefill is true the last
+// submitted word is restored (cursor at the end) so it can be edited; otherwise
+// the field is cleared for a fresh word.
+func (m *Model) returnToInput(prefill bool) (tea.Model, tea.Cmd) {
+	m.state = stateAddInput
+
+	if prefill && m.lastLemma != "" {
+		m.input.SetValue(m.lastLemma)
+		m.input.CursorEnd()
+	} else {
+		m.input.Reset()
+	}
+
+	return m, m.input.Focus()
+}
+
+// enterEdit seeds the edit fields from the current preview and opens the editor
+// with the Front field focused.
+func (m *Model) enterEdit() (tea.Model, tea.Cmd) {
+	m.editFront.SetValue(m.previewNote.Front)
+	m.editBack.SetValue(m.previewNote.Back)
+	m.editFocus = 0
+	m.manualEdit = false
+	m.state = stateAddEdit
+
+	return m, m.focusEditField()
+}
+
+// enterManualEdit skips the dictionary lookup: it seeds a blank card from the
+// typed word (Front = word, empty Back, tagged manual) and opens the editor on
+// the Back field so the translation can be filled in by hand. It reuses the
+// edit→preview→add path — ctrl+s returns to the preview, enter writes it to Anki.
+func (m *Model) enterManualEdit(lemma string) (tea.Model, tea.Cmd) {
+	m.lastLemma = lemma
+	m.previewNote = flashcard.Note{
+		Front: lemma,
+		Tags:  []string{"german", "manual"},
+	}
+	m.input.Blur()
+	m.editFront.SetValue(lemma)
+	m.editBack.SetValue("")
+	m.editFocus = 1 // focus the Back field — the Front is already the word
+	m.manualEdit = true
+	m.state = stateAddEdit
+
+	return m, m.focusEditField()
+}
+
+// handleEditKey drives the Front/Back editor. ctrl+s commits the edits back into
+// previewNote and returns to the preview; esc discards them; tab switches fields.
+func (m *Model) handleEditKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.editFront.Blur()
+		m.editBack.Blur()
+
+		// Manual entry has no preview to fall back to — go straight back to the
+		// word input, keeping the typed word so it can be retried.
+		if m.manualEdit {
+			return m.returnToInput(true)
+		}
+
+		m.state = stateAddPreview
+
+		return m, nil
+	case tea.KeyCtrlS:
+		m.previewNote.Front = strings.TrimSpace(m.editFront.Value())
+		m.previewNote.Back = strings.TrimRight(m.editBack.Value(), "\n")
+		m.editFront.Blur()
+		m.editBack.Blur()
+		m.state = stateAddPreview
+
+		return m, nil
+	case tea.KeyTab, tea.KeyShiftTab:
+		m.editFocus = 1 - m.editFocus
+		return m, m.focusEditField()
+	}
+
+	var cmd tea.Cmd
+	if m.editFocus == 0 {
+		m.editFront, cmd = m.editFront.Update(msg)
+	} else {
+		m.editBack, cmd = m.editBack.Update(msg)
+	}
+
+	return m, cmd
+}
+
+// focusEditField focuses the field named by editFocus and blurs the other,
+// returning the focused field's cursor-blink command.
+func (m *Model) focusEditField() tea.Cmd {
+	if m.editFocus == 0 {
+		m.editBack.Blur()
+		return m.editFront.Focus()
+	}
+
+	m.editFront.Blur()
+
+	return m.editBack.Focus()
 }
 
 // handleScanKey drives the suggestion review screen.
@@ -418,10 +557,7 @@ func (m *Model) setSuggestions(suggestions []deckbuilder.Suggestion) {
 func (m *Model) setSize(w, h int) {
 	m.width, m.height = w, h
 
-	listH := h - 4
-	if listH < 1 {
-		listH = 1
-	}
+	listH := max(h-4, 1)
 
 	m.deckList.SetSize(w, listH)
 	m.modeList.SetSize(w, listH)
@@ -429,7 +565,14 @@ func (m *Model) setSize(w, h int) {
 	iw := w - 8
 	if iw > 0 {
 		m.input.Width = iw
+		m.editFront.Width = iw
 	}
+
+	if tw := w - 4; tw > 0 {
+		m.editBack.SetWidth(tw)
+	}
+
+	m.editBack.SetHeight(6)
 }
 
 // View renders the active screen. All colors come from m.styles.
@@ -446,6 +589,8 @@ func (m *Model) View() string {
 			m.spinner.View() + " " + m.styles.Faint.Render("searching the dictionary…")
 	case stateAddPreview:
 		return m.viewAddPreview()
+	case stateAddEdit:
+		return m.viewAddEdit()
 	case stateAddSaving:
 		return m.styles.Title.Render(" Adding ") + "\n\n" +
 			m.spinner.View() + " " + m.styles.Faint.Render("contacting Anki…")
@@ -482,7 +627,7 @@ func (m *Model) viewAddInput() string {
 	b.WriteString("\n\n")
 	b.WriteString(m.styles.ActiveInput.Render(m.input.View()))
 	b.WriteString("\n\n")
-	b.WriteString(m.hints("enter", "add", "esc", "back", "ctrl+c", "quit"))
+	b.WriteString(m.hints("enter", "add", "ctrl+e", "manual", "ctrl+u", "clear", "esc", "back", "ctrl+c", "quit"))
 
 	return b.String()
 }
@@ -518,9 +663,41 @@ func (m *Model) viewAddPreview() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(m.hints("enter", "add", "esc", "cancel", "ctrl+c", "quit"))
+	b.WriteString(m.hints("enter", "add", "e", "edit", "esc", "cancel", "ctrl+c", "quit"))
 
 	return b.String()
+}
+
+// viewAddEdit renders the Front/Back editor opened from the preview.
+func (m *Model) viewAddEdit() string {
+	var b strings.Builder
+	b.WriteString(m.styles.Title.Render(" Edit "))
+	b.WriteString("\n")
+	b.WriteString(m.styles.Faint.Render("deck: " + string(m.deck)))
+	b.WriteString("\n\n")
+
+	b.WriteString(m.fieldLabel("Front", m.editFocus == 0))
+	b.WriteString("\n")
+	b.WriteString(m.editFront.View())
+	b.WriteString("\n\n")
+
+	b.WriteString(m.fieldLabel("Back", m.editFocus == 1))
+	b.WriteString("\n")
+	b.WriteString(m.editBack.View())
+	b.WriteString("\n\n")
+
+	b.WriteString(m.hints("tab", "switch field", "ctrl+s", "save", "esc", "cancel"))
+
+	return b.String()
+}
+
+// fieldLabel renders an edit-field label, accented when the field is focused.
+func (m *Model) fieldLabel(name string, active bool) string {
+	if active {
+		return m.styles.Selected.Render("▌ " + name)
+	}
+
+	return m.styles.Faint.Render("  " + name)
 }
 
 func (m *Model) viewAddResult() string {
@@ -624,7 +801,7 @@ func articleOf(s deckbuilder.Suggestion) string {
 }
 
 func firstArticle(text string) string {
-	for _, w := range strings.Fields(strings.ToLower(text)) {
+	for w := range strings.FieldsSeq(strings.ToLower(text)) {
 		switch w {
 		case "der", "die", "das":
 			return w
