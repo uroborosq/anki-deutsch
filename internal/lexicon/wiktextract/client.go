@@ -1,13 +1,14 @@
 package wiktextract
 
 import (
-	"anki/internal/lexicon"
 	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
+
+	"anki/internal/lexicon"
 )
 
 // Client is an offline lexicon.Dictionary that answers lookups from a compact

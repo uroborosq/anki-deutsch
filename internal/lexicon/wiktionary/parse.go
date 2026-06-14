@@ -1,9 +1,10 @@
 package wiktionary
 
 import (
-	"anki/internal/lexicon"
 	"regexp"
 	"strings"
+
+	"anki/internal/lexicon"
 )
 
 // parse turns raw Wiktionary wikitext into a lexicon.Word. It is best-effort:

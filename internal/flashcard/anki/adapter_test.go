@@ -1,10 +1,6 @@
 package anki_test
 
 import (
-	"anki/internal/deckbuilder/usecase"
-	"anki/internal/flashcard"
-	"anki/internal/flashcard/anki"
-	"anki/pkg/ankiconnect"
 	"context"
 	"encoding/json"
 	"io"
@@ -12,6 +8,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"anki/internal/deckbuilder/usecase"
+	"anki/internal/flashcard"
+	"anki/internal/flashcard/anki"
+	"anki/pkg/ankiconnect"
 )
 
 // compile-time assertion that the adapter satisfies the outbound port.

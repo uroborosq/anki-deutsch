@@ -5,9 +5,10 @@
 package wiktextract
 
 import (
-	"anki/internal/lexicon"
 	"encoding/json"
 	"strings"
+
+	"anki/internal/lexicon"
 )
 
 // rawEntry mirrors the subset of the kaikki dewiktionary JSON we consume. The

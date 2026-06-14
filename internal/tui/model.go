@@ -1,9 +1,6 @@
 package tui
 
 import (
-	"anki/internal/deckbuilder"
-	"anki/internal/deckbuilder/usecase"
-	"anki/internal/flashcard"
 	"fmt"
 	"strings"
 
@@ -12,6 +9,10 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+
+	"anki/internal/deckbuilder"
+	"anki/internal/deckbuilder/usecase"
+	"anki/internal/flashcard"
 )
 
 // Service is the inbound port the UI drives. It is an alias of usecase.Service so

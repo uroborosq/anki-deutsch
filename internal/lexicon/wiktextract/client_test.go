@@ -1,8 +1,6 @@
 package wiktextract
 
 import (
-	"anki/internal/deckbuilder/usecase"
-	"anki/internal/lexicon"
 	"bufio"
 	"context"
 	"encoding/json"
@@ -10,6 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"anki/internal/deckbuilder/usecase"
+	"anki/internal/lexicon"
 )
 
 // Client must satisfy the outbound Dictionary port.

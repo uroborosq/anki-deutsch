@@ -1,11 +1,12 @@
 package usecase
 
 import (
+	"context"
+	"errors"
+
 	"anki/internal/deckbuilder"
 	"anki/internal/flashcard"
 	"anki/internal/lexicon"
-	"context"
-	"errors"
 )
 
 // service is the concrete Service implementation. It depends only on the ports.

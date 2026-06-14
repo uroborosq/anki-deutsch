@@ -10,19 +10,19 @@
 package main
 
 import (
-	"anki/internal/deckbuilder/usecase"
-	"anki/internal/lexicon/wiktextract"
-	"anki/internal/lexicon/wiktionary"
-	"anki/internal/tui"
-	"anki/pkg/ankiconnect"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 
-	ankiadapter "anki/internal/flashcard/anki"
-
 	tea "github.com/charmbracelet/bubbletea"
+
+	"anki/internal/deckbuilder/usecase"
+	ankiadapter "anki/internal/flashcard/anki"
+	"anki/internal/lexicon/wiktextract"
+	"anki/internal/lexicon/wiktionary"
+	"anki/internal/tui"
+	"anki/pkg/ankiconnect"
 )
 
 // Defaults wire the user's usual setup so the TUI runs with no flags: the

@@ -1,8 +1,6 @@
 package wiktionary
 
 import (
-	"anki/internal/deckbuilder/usecase"
-	"anki/internal/lexicon"
 	"context"
 	"errors"
 	"net/http"
@@ -10,6 +8,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"anki/internal/deckbuilder/usecase"
+	"anki/internal/lexicon"
 )
 
 // Client must satisfy the outbound Dictionary port.

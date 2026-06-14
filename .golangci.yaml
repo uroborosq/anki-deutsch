@@ -7,3 +7,17 @@ linters:
 formatters:
   enable:
     - gofumpt
+    - gci
+  settings:
+    gofumpt:
+      # Tell gofumpt the module path so its import-grouping check agrees with the
+      # gci layout below instead of fighting it.
+      module-path: anki
+    gci:
+      # Mirror goimports-reviser ordering: stdlib, then third-party, then
+      # this module's own packages, each in its own blank-line-separated group.
+      sections:
+        - standard
+        - default
+        - prefix(anki)
+      custom-order: true

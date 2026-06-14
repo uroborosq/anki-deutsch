@@ -1,11 +1,12 @@
 package tui
 
 import (
-	"anki/internal/deckbuilder"
-	"anki/internal/flashcard"
 	"context"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"anki/internal/deckbuilder"
+	"anki/internal/flashcard"
 )
 
 // Messages flowing back into Update from the asynchronous Service commands. Each

@@ -5,7 +5,6 @@
 package wiktionary
 
 import (
-	"anki/internal/lexicon"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -13,6 +12,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+
+	"anki/internal/lexicon"
 )
 
 // defaultBaseURL is the German Wiktionary MediaWiki API endpoint.

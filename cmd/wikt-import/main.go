@@ -11,7 +11,6 @@
 package main
 
 import (
-	"anki/internal/lexicon/wiktextract"
 	"bufio"
 	"compress/bzip2"
 	"compress/gzip"
@@ -21,6 +20,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"anki/internal/lexicon/wiktextract"
 )
 
 func main() {

@@ -4,10 +4,11 @@
 package anki
 
 import (
-	"anki/internal/flashcard"
-	"anki/pkg/ankiconnect"
 	"context"
 	"fmt"
+
+	"anki/internal/flashcard"
+	"anki/pkg/ankiconnect"
 )
 
 // Adapter implements the deckbuilder Cards port on top of an AnkiConnect client.

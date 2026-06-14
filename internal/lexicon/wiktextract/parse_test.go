@@ -1,11 +1,12 @@
 package wiktextract
 
 import (
-	"anki/internal/lexicon"
 	"bufio"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"anki/internal/lexicon"
 )
 
 // loadWord scans a fixture dump for the first German lemma entry named lemma.

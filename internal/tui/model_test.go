@@ -1,14 +1,15 @@
 package tui
 
 import (
-	"anki/internal/deckbuilder"
-	"anki/internal/deckbuilder/usecase/usecasetest"
-	"anki/internal/flashcard"
 	"context"
 	"errors"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"anki/internal/deckbuilder"
+	"anki/internal/deckbuilder/usecase/usecasetest"
+	"anki/internal/flashcard"
 )
 
 // update applies a message and returns the concrete *Model for assertions.
