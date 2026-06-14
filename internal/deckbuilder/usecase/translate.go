@@ -1,9 +1,13 @@
 package usecase
 
 import (
+	"regexp"
+	"strings"
+	"unicode"
+	"unicode/utf8"
+
 	"anki/internal/flashcard"
 	"anki/internal/lexicon"
-	"strings"
 )
 
 // translate is the anti-corruption mapping from a lexicon.Word to a
@@ -89,24 +93,92 @@ func normalizePlural(p string) string {
 	return strings.TrimSpace(p)
 }
 
-// extractLemma recovers the lookup word from an existing card's Front by
-// stripping a leading article (der/die/das/ein/eine) and a leading "sich".
+var (
+	// htmlNoise matches the markup that creeps into hand-typed Front fields:
+	// tags like <br> and entities like &nbsp;.
+	htmlNoise = regexp.MustCompile(`<[^>]*>|&[a-zA-Z]+;|&#\d+;`)
+	// gluedSuffix matches a plural/feminine inflection hyphenated onto the lemma,
+	// e.g. "Kaugummi-s", "Auto-s", "Lehrer-in".
+	gluedSuffix = regexp.MustCompile(`(?i)-(s|e|n|en|er|nen|in|innen)$`)
+)
+
+// leadingArticles are the articles and the reflexive "sich" stripped from the
+// front of a card before lookup.
+var leadingArticles = map[string]bool{
+	"der": true, "die": true, "das": true,
+	"ein": true, "eine": true, "sich": true,
+}
+
+// extractLemma recovers the lookup word from an existing card's Front. Real
+// decks are noisy: the Front carries the dictionary article (der/die/das), the
+// reflexive "sich", and grammar shorthand that is not part of the lemma —
+// single-letter or short plural markers ("Bauer n", "Bildschirm e",
+// "Jahreszahl en"), bare symbols ("Gewerbe =", "Kloster = ö"), hyphenated
+// inflections ("Kaugummi-s"), HTML leftovers ("Job<br>") and comma-separated
+// alternatives ("Ursache n, der Grund"). All of that is dropped so only the
+// headword is looked up.
 func extractLemma(front string) string {
-	s := strings.TrimSpace(front)
-	for {
-		fields := strings.SplitN(s, " ", 2)
-		if len(fields) != 2 {
+	s := htmlNoise.ReplaceAllString(front, " ")
+
+	// Keep only the first alternative when several are crammed into one field.
+	if i := strings.IndexAny(s, ",;/"); i >= 0 {
+		s = s[:i]
+	}
+
+	fields := strings.Fields(s)
+
+	// Drop leading articles and "sich".
+	for len(fields) > 0 && leadingArticles[strings.ToLower(fields[0])] {
+		fields = fields[1:]
+	}
+
+	// Drop trailing grammar markers and a postfix reflexive "sich"
+	// ("entspannen sich"), keeping at least one token as the lemma.
+	for len(fields) > 1 {
+		last := fields[len(fields)-1]
+		if !isGrammarMarker(last) && !strings.EqualFold(last, "sich") {
 			break
 		}
 
-		switch strings.ToLower(fields[0]) {
-		case "der", "die", "das", "ein", "eine", "sich":
-			s = strings.TrimSpace(fields[1])
-			continue
-		}
-
-		break
+		fields = fields[:len(fields)-1]
 	}
 
-	return s
+	lemma := strings.Join(fields, " ")
+
+	// Strip an inflection hyphenated directly onto a single headword.
+	if !strings.Contains(lemma, " ") {
+		lemma = gluedSuffix.ReplaceAllString(lemma, "")
+	}
+
+	return strings.TrimSpace(lemma)
+}
+
+// isGrammarMarker reports whether a trailing token is grammar shorthand rather
+// than part of the lemma: a parenthetical note ("(ab)", "(-e)"), a hyphen-led
+// ending ("-en", "-er"), a bare symbol (=, ¨, -), a single letter, or a short
+// German plural/feminine ending.
+func isGrammarMarker(tok string) bool {
+	t := strings.ToLower(strings.TrimSpace(tok))
+	if t == "" {
+		return true
+	}
+
+	if strings.HasPrefix(t, "(") || strings.HasPrefix(t, "-") {
+		return true // "(ab)", "(-e)", "-en", "-er".
+	}
+
+	if !strings.ContainsFunc(t, unicode.IsLetter) {
+		return true // "=", "¨" and friends.
+	}
+
+	if utf8.RuneCountInString(t) == 1 {
+		return true // "n", "e", "s", "t", "ö".
+	}
+
+	switch t {
+	case "en", "er", "nen", "in", "innen":
+		return true
+	}
+
+	return false
 }

@@ -1,15 +1,16 @@
 package usecase_test
 
 import (
+	"context"
+	"errors"
+	"reflect"
+	"testing"
+
 	"anki/internal/deckbuilder"
 	"anki/internal/deckbuilder/usecase"
 	"anki/internal/deckbuilder/usecase/usecasetest"
 	"anki/internal/flashcard"
 	"anki/internal/lexicon"
-	"context"
-	"errors"
-	"reflect"
-	"testing"
 )
 
 func TestTranslate(t *testing.T) {
@@ -173,6 +174,31 @@ func TestExtractLemma(t *testing.T) {
 		{"sich freuen", "freuen"},
 		{"gehen", "gehen"},
 		{"  das Haus  ", "Haus"},
+
+		// Real DEUTSCH-deck noise: plural/grammar markers, symbols, HTML,
+		// hyphenated inflections and comma-separated alternatives.
+		{"Der Bauer n", "Bauer"},
+		{"der bildschirm e", "bildschirm"},
+		{"die jahrezahle en", "jahrezahle"},
+		{"das Gewerbe =", "Gewerbe"},
+		{"das kloster = ö", "kloster"},
+		{"Der kaugummi-s", "kaugummi"},
+		{"arbeitnehmer in", "arbeitnehmer"},
+		{"der job<br>", "job"},
+		{"verletzung&nbsp;", "verletzung"},
+		{"die ursache n, der grunde", "ursache"},
+		{"die alleinerziehende =", "alleinerziehende"},
+		{"die Station -en", "Station"},
+		{"das Kaufhaus -er", "Kaufhaus"},
+		{"die Abfahrt (ab)", "Abfahrt"},
+		{"das Feuerzeug (-e)", "Feuerzeug"},
+		{"der Aschenbecher (-)", "Aschenbecher"},
+		// Reflexive "sich" is dropped whether it leads or trails.
+		{"sich verwöhne", "verwöhne"},
+		{"entspannen sich", "entspannen"},
+		{"sich umziehen", "umziehen"},
+		// Phrases keep their words; only trailing markers are dropped.
+		{"zur verfügung stehen", "zur verfügung stehen"},
 	}
 	for _, tt := range tests {
 		// extractLemma is unexported; exercise it via ScanDeck's lookup arg.

@@ -170,17 +170,27 @@ Inbound-порт (от него зависит TUI, чтобы не тянуть
 - Other → только перевод + определения.
 - Теги `["german", "auto"]`.
 
+`extractLemma(front) → lemma` нормализует шумный Front реальной колоды перед
+поиском: убирает HTML (`<br>`, `&nbsp;`), берёт только первую альтернативу из
+перечисления через `,`/`;`/`/`, отбрасывает ведущие артикли (`der/die/das/ein/
+eine`) и `sich` (в любой позиции — `sich freuen`, `entspannen sich`), затем
+хвостовые грамматические маркеры — одиночные буквы и короткие окончания
+множественного/женского рода (`n`, `e`, `en`, `er`, `in`, `nen`), голые символы
+(`=`, `¨`, `ö`), скобочные пометки (`(ab)`, `(-e)`), маркеры через дефис как
+отдельным токеном (`-en`, `-er`), так и приклеенные к лемме (`Kaugummi-s`).
+Многословные выражения сохраняются целиком (срезаются только хвостовые маркеры).
+
 Сценарии (`service.go`):
 
-- `PreviewWord(ctx, lemma)` → извлечь lemma (убрать артикль/`sich`, как в
-  ScanDeck, т.к. страницы Wiktionary озаглавлены по голой лемме) →
-  `Dictionary.Lookup` → трансляция (артикль восстанавливается по роду) →
-  вернуть `flashcard.Note` **без записи**.
+- `PreviewWord(ctx, lemma)` → извлечь lemma (`extractLemma`, как в ScanDeck,
+  т.к. страницы Wiktionary озаглавлены по голой лемме) → `Dictionary.Lookup` →
+  трансляция (артикль восстанавливается по роду) → вернуть `flashcard.Note`
+  **без записи**.
 - `AddNote(ctx, deck, note)` → `Cards.Add`.
 - `AddWord(ctx, deck, lemma)` → `PreviewWord` + `AddNote` одним шагом.
 - `ScanDeck(ctx, deck) ([]Suggestion, error)`:
   1. `Cards.FindIncomplete(deck)`.
-  2. Из Front извлечь lemma (убрать артикль/`sich`), `Dictionary.Lookup`.
+  2. Из Front извлечь lemma (`extractLemma`), `Dictionary.Lookup`.
   3. Собрать недостающие поля через ту же трансляцию →
      `Suggestion{ NoteID, Lemma, Fields }`.
   4. Не найдено / неоднозначно → `Suggestion{ Skipped: true, Reason }`.
